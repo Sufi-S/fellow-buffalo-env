@@ -1,0 +1,10 @@
+{
+  "id": "e07",
+  "subject": "Your Amazon Order Has Been Shipped",
+  "body": "Your order #402-8834521 has been shipped and will arrive by March 22. Track your package using the link below.",
+  "attachment_texts": {},
+  "correct_tab": "General",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 1
+}

@@ -1,0 +1,366 @@
+"""
+Fellow Buffalo - Task Graders
+Contains the 3 tasks with their scoring functions.
+"""
+
+import os
+import json
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
+from openai import OpenAI
+
+
+# Load Groq API key for Task 2 grader (if available)
+def load_env_file(filepath='.env'):
+    """Load environment variables from .env file"""
+    if os.path.exists(filepath):
+        with open(filepath, 'rb') as f:
+            content = f.read()
+        
+        # Remove BOM if present
+        if content.startswith(b'\xef\xbb\xbf'):
+            content = content[3:]
+        
+        text = content.decode('utf-8')
+        for line in text.splitlines():
+            line = line.strip()
+            if line and not line.startswith('#'):
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+        return True
+    return False
+
+
+# Load .env at module import
+load_env_file()
+
+
+def get_client():
+    """Get OpenAI client for Task 2 grader"""
+    api_key = os.getenv('GROQ_API_KEY')
+    if api_key:
+        return OpenAI(
+            api_key=api_key,
+            base_url='https://api.groq.com/openai/v1'
+        )
+    return None
+
+
+def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
+    """
+    Task 1: Email Classification
+    Scores: tab (0.33), color (0.33), deadline (0.34)
+    
+    Args:
+        correct: Dictionary with correct tab, color, deadline
+        agent: Dictionary with agent's tab, color, deadline
+    
+    Returns:
+        Score between 0.0 and 1.0
+    """
+    score = 0.0
+    
+    # Tab (0.33)
+    if agent.get('tab') == correct.get('tab'):
+        score += 0.33
+    
+    # Color (0.33)
+    if agent.get('color') == correct.get('color'):
+        score += 0.33
+    
+    # Deadline (0.34)
+    agent_deadline = agent.get('deadline')
+    correct_deadline = correct.get('deadline')
+    
+    if agent_deadline == correct_deadline:
+        score += 0.34
+    elif agent_deadline and correct_deadline:
+        # Partial credit if dates are within 1 day
+        try:
+            agent_dt = datetime.fromisoformat(agent_deadline.replace('Z', '+00:00'))
+            correct_dt = datetime.fromisoformat(correct_deadline.replace('Z', '+00:00'))
+            diff_days = abs((agent_dt - correct_dt).days)
+            if diff_days <= 1:
+                score += 0.17  # Half credit
+        except:
+            pass
+    
+    return round(score, 2)
+
+
+def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> float:
+    """
+    Task 2: Metadata Generation
+    Uses AI to score summary quality (0.5) and tag cloud quality (0.5)
+    
+    Args:
+        email_body: Original email content
+        agent_summary: AI-generated summary
+        agent_tag_cloud: AI-generated tag cloud (pipe-separated)
+    
+    Returns:
+        Score between 0.0 and 1.0
+    """
+    client = get_client()
+    
+    if not client:
+        # Fallback: simple length-based scoring if no API
+        summary_score = min(1.0, len(agent_summary) / 200) if agent_summary else 0.0
+        tag_count = len(agent_tag_cloud.split('|')) if agent_tag_cloud else 0
+        tag_score = min(1.0, tag_count / 5) if tag_count > 0 else 0.0
+        return round((summary_score * 0.5 + tag_score * 0.5), 2)
+    
+    summary_score = 0.5
+    tag_score = 0.5
+    
+    # Score summary
+    try:
+        summary_response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are an evaluator. Score this email summary from 0.0 to 1.0 based on: accuracy (captures main points), completeness (covers key details), and conciseness. Return only the number."},
+                {"role": "user", "content": f"Original email: {email_body[:1000]}\n\nSummary: {agent_summary}"}
+            ],
+            max_tokens=10,
+            temperature=0
+        )
+        summary_score = float(summary_response.choices[0].message.content.strip())
+        # Clamp to 0-1 range
+        summary_score = max(0.0, min(1.0, summary_score))
+    except Exception as e:
+        print(f"Summary scoring failed: {e}")
+        summary_score = 0.5
+    
+    # Score tag cloud
+    try:
+        tag_response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "Score this tag cloud from 0.0 to 1.0 based on: relevance to email, coverage of key topics, and quality of tags. Return only the number."},
+                {"role": "user", "content": f"Original email: {email_body[:500]}\n\nTag cloud: {agent_tag_cloud}"}
+            ],
+            max_tokens=10,
+            temperature=0
+        )
+        tag_score = float(tag_response.choices[0].message.content.strip())
+        tag_score = max(0.0, min(1.0, tag_score))
+    except Exception as e:
+        print(f"Tag cloud scoring failed: {e}")
+        tag_score = 0.5
+    
+    final_score = (summary_score * 0.5 + tag_score * 0.5)
+    return round(final_score, 2)
+
+
+def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
+    """
+    Task 3: Lifecycle Management
+    Scores based on correct color for the deadline (0.1 each, max 0.8)
+    + grouping (0.2 max)
+    
+    Args:
+        transitions: List of lifecycle decisions from agent
+        correct_groups: List of expected group names
+    
+    Returns:
+        Score between 0.0 and 1.0
+    """
+    if not transitions:
+        return 0.0
+    
+    score = 0.0
+    
+    for t in transitions:
+        color = t.get('color', '').lower()
+        deadline_str = t.get('deadline', '')
+        
+        # Check if color is CORRECT for the deadline
+        if deadline_str:
+            try:
+                deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                
+                # Make timezone-aware comparison
+                if deadline.tzinfo:
+                    now = datetime.now(timezone.utc)
+                else:
+                    now = datetime.now()
+                    # Make deadline naive if needed
+                    deadline = deadline.replace(tzinfo=None)
+                
+                days_diff = (deadline - now).days
+                
+                # Correct color logic
+                if color == 'green' and days_diff > 0:
+                    score += 0.1   # Future deadline → green correct
+                elif color == 'orange' and -7 <= days_diff <= 0:
+                    score += 0.1   # Just passed → orange correct
+                elif color == 'red' and days_diff < -7:
+                    score += 0.1   # Old → red correct
+                else:
+                    score += 0.02   # Wrong color for this deadline (small penalty)
+            except Exception as e:
+                print(f"Date parsing error: {e}")
+                # Can't parse deadline, give small credit for valid color
+                if color in ['green', 'orange', 'red']:
+                    score += 0.05
+        else:
+            # No deadline - green is correct default
+            if color == 'green':
+                score += 0.1
+            elif color in ['orange', 'red']:
+                score += 0.02  # Wrong color for no-deadline email
+    
+    # Cap color score at 0.8
+    color_score = min(score, 0.8)
+    
+    # Score grouping (0.2 max)
+    grouping_score = 0.0
+    agent_groups = [t.get('group', '').lower() for t in transitions if t.get('group')]
+    
+    if agent_groups and correct_groups:
+        correct_set = set(g.lower() for g in correct_groups)
+        matches = sum(1 for g in agent_groups if g in correct_set)
+        ratio = matches / max(len(correct_groups), 1)
+        grouping_score = round(ratio * 0.2, 2)
+    
+    final_score = color_score + grouping_score
+    return round(min(final_score, 1.0), 2)
+
+
+def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Evaluate Task 1 and return detailed results
+    
+    Args:
+        correct: Ground truth labels
+        agent: Agent's predictions
+    
+    Returns:
+        Dictionary with score and individual component scores
+    """
+    tab_correct = agent.get('tab') == correct.get('tab')
+    color_correct = agent.get('color') == correct.get('color')
+    deadline_correct = agent.get('deadline') == correct.get('deadline')
+    
+    score = task1_grader(correct, agent)
+    
+    return {
+        'score': score,
+        'tab_correct': tab_correct,
+        'color_correct': color_correct,
+        'deadline_correct': deadline_correct,
+        'agent_tab': agent.get('tab'),
+        'agent_color': agent.get('color'),
+        'agent_deadline': agent.get('deadline'),
+        'correct_tab': correct.get('tab'),
+        'correct_color': correct.get('color'),
+        'correct_deadline': correct.get('deadline')
+    }
+
+
+def evaluate_task2(email_body: str, agent_summary: str, agent_tag_cloud: str) -> Dict[str, Any]:
+    """
+    Evaluate Task 2 and return detailed results
+    
+    Args:
+        email_body: Original email content
+        agent_summary: Agent's summary
+        agent_tag_cloud: Agent's tag cloud
+    
+    Returns:
+        Dictionary with score and metadata
+    """
+    score = task2_grader(email_body, agent_summary, agent_tag_cloud)
+    
+    return {
+        'score': score,
+        'summary_length': len(agent_summary),
+        'tag_count': len(agent_tag_cloud.split('|')) if agent_tag_cloud else 0,
+        'summary_preview': agent_summary[:100] if agent_summary else '',
+        'tag_cloud': agent_tag_cloud
+    }
+
+
+def evaluate_task3(transitions: List[Dict], correct_groups: List[str]) -> Dict[str, Any]:
+    """
+    Evaluate Task 3 and return detailed results
+    
+    Args:
+        transitions: Agent's lifecycle decisions
+        correct_groups: Expected group names
+    
+    Returns:
+        Dictionary with score and transition details
+    """
+    score = task3_grader(transitions, correct_groups)
+    
+    # Count valid transitions
+    valid_colors = ['green', 'orange', 'red']
+    valid_transitions = sum(1 for t in transitions if t.get('color', '').lower() in valid_colors)
+    
+    # Count matching groups
+    agent_groups = [t.get('group', '').lower() for t in transitions if t.get('group')]
+    correct_set = set(g.lower() for g in correct_groups)
+    matching_groups = sum(1 for g in agent_groups if g in correct_set)
+    
+    return {
+        'score': score,
+        'total_transitions': len(transitions),
+        'valid_transitions': valid_transitions,
+        'color_score': min(len(transitions) * 0.1, 0.8),
+        'matching_groups': matching_groups,
+        'total_groups': len(correct_groups),
+        'agent_groups': agent_groups,
+        'expected_groups': correct_groups,
+        'transitions': transitions
+    }
+
+
+if __name__ == "__main__":
+    # Test the graders
+    print("Testing Task 1 Grader...")
+    correct = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00"}
+    agent = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00"}
+    print(f"Perfect score: {task1_grader(correct, agent)}")
+    
+    # Test partial deadline
+    agent_wrong = {"tab": "Jobs", "color": "green", "deadline": "2025-04-16T23:59:00"}
+    print(f"Partial deadline: {task1_grader(correct, agent_wrong)}")
+    
+    print("\nTesting Task 2 Grader...")
+    email = "We are excited to announce a new internship program for students interested in AI and machine learning. Applications are open until May 15th."
+    summary = "Company announces new internship program for AI/ML students"
+    tags = "internship|AI|machine learning|career"
+    print(f"Score: {task2_grader(email, summary, tags)}")
+    
+    print("\nTesting Task 3 Grader...")
+    
+    # Test with correct colors based on deadlines
+    from datetime import datetime, timedelta
+    future = (datetime.now() + timedelta(days=10)).isoformat()
+    recent = (datetime.now() - timedelta(days=3)).isoformat()
+    old = (datetime.now() - timedelta(days=10)).isoformat()
+    
+    transitions_correct = [
+        {"color": "green", "deadline": future, "group": "internships_q1"},
+        {"color": "orange", "deadline": recent, "group": "internships_q1"},
+        {"color": "red", "deadline": old, "group": "jobs_q1"}
+    ]
+    correct_groups = ["internships_q1", "jobs_q1", "finance_q1"]
+    print(f"Correct colors score: {task3_grader(transitions_correct, correct_groups)}")
+    
+    # Test with incorrect colors
+    transitions_wrong = [
+        {"color": "red", "deadline": future, "group": "internships_q1"},  # Wrong: future should be green
+        {"color": "green", "deadline": old, "group": "internships_q1"},    # Wrong: old should be red
+        {"color": "orange", "deadline": old, "group": "jobs_q1"}           # Wrong: old should be red
+    ]
+    print(f"Wrong colors score: {task3_grader(transitions_wrong, correct_groups)}")
+    
+    # Test no deadlines
+    transitions_no_deadline = [
+        {"color": "green", "group": "internships_q1"},
+        {"color": "green", "group": "jobs_q1"}
+    ]
+    print(f"No deadlines score: {task3_grader(transitions_no_deadline, correct_groups)}")

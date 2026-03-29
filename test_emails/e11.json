@@ -1,0 +1,12 @@
+{
+  "id": "e11",
+  "subject": "Invoice #INV-2025-0342 — Cloud Services",
+  "body": "Please find attached your invoice for cloud services for March 2025. Amount due: $149.00. Payment due by April 5, 2025.",
+  "attachment_texts": {
+    "invoice_march.pdf": "Invoice Number: INV-2025-0342. Billing period: March 1-31 2025. AWS EC2: $89. S3 Storage: $35. Data Transfer: $25. Total: $149. Due date: April 5 2025."
+  },
+  "correct_tab": "Finance",
+  "correct_color": "green",
+  "correct_deadline": "2025-04-05T23:59:00",
+  "task": 2
+}
