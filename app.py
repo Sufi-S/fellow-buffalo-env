@@ -352,9 +352,10 @@ async def tasks() -> Dict[str, Any]:
     }
 
 
+
 @app.post("/baseline")
 async def baseline() -> BaselineResponse:
-    """Run baseline inference and return scores - FIXED: No self-calling"""
+    """Run baseline inference and return scores - FIXED: Direct execution"""
     scores = {"task_1": 0.0, "task_2": 0.0, "task_3": 0.0}
     
     client, model = get_ai_client()
@@ -387,9 +388,44 @@ async def grader() -> Dict[str, float]:
     return {"score": last_reward}
 
 
+@app.get("/debug")
+async def debug():
+    """Debug endpoint to check API key and test calls"""
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    
+    api_key = os.getenv('GROQ_API_KEY')
+    hf_token = os.getenv('HF_TOKEN')
+    
+    # Try to get client
+    client, model = get_ai_client()
+    
+    result = {
+        "groq_key_exists": bool(api_key),
+        "hf_token_exists": bool(hf_token),
+        "api_key_preview": api_key[:20] + "..." if api_key else None,
+        "client_created": client is not None,
+        "model": model if client else None,
+        "test_call": None
+    }
+    
+    # Test actual API call
+    if client:
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "Say OK in one word"}],
+                max_tokens=5,
+                temperature=0
+            )
+            result["test_call"] = response.choices[0].message.content
+        except Exception as e:
+            result["test_call"] = f"Error: {str(e)}"
+    
+    return result
+
 if __name__ == "__main__":
     import uvicorn
     print("Starting Fellow Buffalo OpenEnv Server...")
-    print(f"API Key configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
-    uvicorn.run(app, host="0.0.0.0", port=7860) 
- 
+    print(f"GROQ_API_KEY configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
+    uvicorn.run(app, host="0.0.0.0", port=7860)
