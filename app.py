@@ -5,6 +5,10 @@ FastAPI server exposing the required endpoints for the hackathon.
 
 import os
 import sys
+import json
+import re
+from datetime import datetime
+from typing import Optional, Dict, Any, List
 
 # Load .env file manually (handles Windows BOM) - MUST BE FIRST
 def load_env_file(filepath='.env'):
@@ -31,11 +35,11 @@ load_env_file()
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-import subprocess
+from openai import OpenAI
 
 from environment import FellowBuffaloEnv
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
+from tasks import task1_grader, task2_grader, task3_grader
 
 # Create FastAPI app
 app = FastAPI(
@@ -74,20 +78,205 @@ class ResetRequest(BaseModel):
     task_id: int = 1
 
 
+def get_ai_client():
+    """Get AI client for baseline"""
+    api_key = os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN')
+    api_base = os.getenv('API_BASE_URL')
+    
+    if not api_key:
+        return None, None
+    
+    if api_base:
+        client = OpenAI(api_key=api_key, base_url=api_base)
+        model = os.getenv('MODEL_NAME', 'gpt-4o-mini')
+    else:
+        client = OpenAI(api_key=api_key, base_url='https://api.groq.com/openai/v1')
+        model = 'llama-3.3-70b-versatile'
+    
+    return client, model
+
+
+def run_task1_baseline(client, model) -> float:
+    """Run Task 1 baseline"""
+    try:
+        test_env = FellowBuffaloEnv()
+        obs = test_env.reset(task_id=1)
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        prompt = f"""
+        Today's date is {today}.
+        
+        Classify this email:
+        Subject: {obs.email_subject}
+        Body: {obs.email_body[:500]}
+        
+        Return JSON only with: tab, color, deadline
+        tab: Jobs, Internships, News, Sports, Events, Finance, General
+        color: green (future), orange (0-7 days past), red (7+ days past)
+        deadline: ISO datetime or null
+        
+        Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00"}}
+        """
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.1
+        )
+        
+        content = response.choices[0].message.content
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+        else:
+            data = {}
+        
+        action = FellowBuffaloAction(
+            task_id=1,
+            tab=data.get('tab'),
+            color=data.get('color'),
+            deadline=data.get('deadline')
+        )
+        
+        _, reward, _ = test_env.step(action)
+        return round(reward, 4)
+        
+    except Exception as e:
+        print(f"Task 1 baseline error: {e}")
+        return 0.0
+
+
+def run_task2_baseline(client, model) -> float:
+    """Run Task 2 baseline"""
+    try:
+        test_env = FellowBuffaloEnv()
+        obs = test_env.reset(task_id=2)
+        
+        prompt = f"""
+        Summarize this email and generate a tag cloud.
+        
+        Subject: {obs.email_subject}
+        Body: {obs.email_body[:800]}
+        Attachments: {obs.attachment_texts}
+        
+        Return JSON only with: summary, tag_cloud
+        tag_cloud should be pipe-separated keywords (e.g., "keyword1|keyword2|keyword3")
+        
+        Example: {{"summary": "This email is about...", "tag_cloud": "AI|internship|deadline"}}
+        """
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.1
+        )
+        
+        content = response.choices[0].message.content
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+        else:
+            data = {}
+        
+        action = FellowBuffaloAction(
+            task_id=2,
+            summary=data.get('summary', ''),
+            tag_cloud=data.get('tag_cloud', '')
+        )
+        
+        _, reward, _ = test_env.step(action)
+        return round(reward, 4)
+        
+    except Exception as e:
+        print(f"Task 2 baseline error: {e}")
+        return 0.0
+
+
+def run_task3_baseline(client, model) -> float:
+    """Run Task 3 baseline"""
+    try:
+        test_env = FellowBuffaloEnv()
+        obs = test_env.reset(task_id=3)
+        total_reward = 0.0
+        step_count = 0
+        
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        while not obs.done and step_count < 12:
+            step_count += 1
+            
+            prompt = f"""
+            Today is {today}.
+            
+            Email lifecycle decision.
+            Subject: {obs.email_subject}
+            Deadline: {obs.deadline}
+            
+            Decide:
+            - color: green (future), orange (0-7 days past), red (7+ days past)
+            - group: internships_q1, jobs_q1, finance_q1, events_q1, news_q1
+            
+            Return JSON only: {{"color": "green", "group": "internships_q1"}}
+            """
+            
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=80,
+                    temperature=0.1
+                )
+                
+                content = response.choices[0].message.content
+                json_match = re.search(r'\{.*\}', content, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+                else:
+                    data = {}
+                
+                action = FellowBuffaloAction(
+                    task_id=3,
+                    lifecycle_decisions=[{
+                        'color': data.get('color', 'green'),
+                        'group': data.get('group', 'general_q1'),
+                        'deadline': obs.deadline
+                    }]
+                )
+                
+                obs, reward, done = test_env.step(action)
+                total_reward += reward
+                
+                if done:
+                    break
+                    
+            except Exception as e:
+                print(f"Task 3 step {step_count} error: {e}")
+                break
+        
+        return round(total_reward, 4)
+        
+    except Exception as e:
+        print(f"Task 3 baseline error: {e}")
+        return 0.0
+
+
 @app.get("/")
 async def root():
     return {
         "name": "Fellow Buffalo",
         "description": "Email triage OpenEnv environment",
         "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/grader"],
-        "api_key_configured": bool(os.getenv('GROQ_API_KEY'))
+        "api_key_configured": bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))
     }
 
 
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    api_key = os.getenv('GROQ_API_KEY')
+    api_key = os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN')
     return {
         "status": "healthy",
         "api_key_configured": bool(api_key),
@@ -165,35 +354,23 @@ async def tasks() -> Dict[str, Any]:
 
 @app.post("/baseline")
 async def baseline() -> BaselineResponse:
-    """Run baseline inference script and return scores"""
-    global env
-    
-    # Save current environment state
-    current_task = env.current_task if hasattr(env, 'current_task') else last_task_id
-    
+    """Run baseline inference and return scores - FIXED: No self-calling"""
     scores = {"task_1": 0.0, "task_2": 0.0, "task_3": 0.0}
     
-    # Run inference script
-    try:
-        # Import inference and run
-        import inference
-        
-        # Run each task
-        for task_id in [1, 2, 3]:
-            score = inference.run_single_task(task_id)
-            scores[f"task_{task_id}"] = score
-            
-    except ImportError as e:
-        print(f"Inference module not found: {e}")
-        # Use baseline scores if inference not available
-        scores = {"task_1": 0.5, "task_2": 0.5, "task_3": 0.5}
-    except Exception as e:
-        print(f"Baseline error: {e}")
-        scores = {"task_1": 0.5, "task_2": 0.5, "task_3": 0.5}
+    client, model = get_ai_client()
     
-    # Restore environment
-    if current_task:
-        env.reset(task_id=current_task)
+    if not client:
+        return BaselineResponse(
+            task_1=0.0,
+            task_2=0.0,
+            task_3=0.0,
+            status="no_api_key"
+        )
+    
+    # Run each task directly (no self-calling)
+    scores["task_1"] = run_task1_baseline(client, model)
+    scores["task_2"] = run_task2_baseline(client, model)
+    scores["task_3"] = run_task3_baseline(client, model)
     
     return BaselineResponse(
         task_1=scores["task_1"],
@@ -210,19 +387,8 @@ async def grader() -> Dict[str, float]:
     return {"score": last_reward}
 
 
-@app.get("/api-key-status")
-async def api_key_status() -> Dict[str, Any]:
-    """Check if Groq API key is configured"""
-    api_key = os.getenv('GROQ_API_KEY')
-    return {
-        "configured": bool(api_key),
-        "preview": api_key[:20] + "..." if api_key else None,
-        "length": len(api_key) if api_key else 0
-    }
-
-
 if __name__ == "__main__":
     import uvicorn
     print("Starting Fellow Buffalo OpenEnv Server...")
-    print(f"GROQ_API_KEY configured: {bool(os.getenv('GROQ_API_KEY'))}")
-    uvicorn.run(app, host="0.0.0.0", port=7860, reload=True)
+    print(f"API Key configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
+    uvicorn.run(app, host="0.0.0.0", port=7860)
