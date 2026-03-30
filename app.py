@@ -391,4 +391,5 @@ if __name__ == "__main__":
     import uvicorn
     print("Starting Fellow Buffalo OpenEnv Server...")
     print(f"API Key configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    uvicorn.run(app, host="0.0.0.0", port=7860) 
+ 
