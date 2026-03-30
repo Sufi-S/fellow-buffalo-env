@@ -7,11 +7,10 @@ colorTo: green
 sdk: docker
 pinned: false
 tags:
-
-* openenv
-* email
-* nlp
-* real-world
+  - openenv
+  - email
+  - nlp
+  - real-world
 
 ---
 
