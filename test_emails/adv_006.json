@@ -1,0 +1,12 @@
+{
+  "id": "adv_006",
+  "subject": "Hello from the Tech Team!",
+  "body": "Hey there! Quick update from our tech team. We're looking for a few passionate students to join us this summer. If you're interested in building cool stuff, let us know. We have a special program for students.",
+  "attachment_texts": {},
+  "correct_tab": "Internships",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 1,
+  "difficulty": "hard",
+  "adversarial": true
+}

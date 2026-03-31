@@ -1,0 +1,12 @@
+{
+  "id": "adv_007",
+  "subject": "Your Account Will Be Suspended — Verify Now",
+  "body": "IMPORTANT: Your account has been flagged for suspicious activity. Click here to verify your credentials immediately: http://fake-bank-verify.com",
+  "attachment_texts": {},
+  "correct_tab": "General",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 1,
+  "difficulty": "hard",
+  "adversarial": true
+}

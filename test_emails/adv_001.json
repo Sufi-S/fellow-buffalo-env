@@ -1,0 +1,12 @@
+{
+  "id": "adv_001",
+  "subject": "Internship Stipend Payment — March 2026",
+  "body": "Dear Intern,\n\nYour internship stipend of Rs 15,000 has been credited to your account ending 4521. Transaction ID: TRX-2026-03-21. Please check your bank statement.\n\nRegards,\nHR Department",
+  "attachment_texts": {},
+  "correct_tab": "Finance",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 1,
+  "difficulty": "hard",
+  "adversarial": true
+}

@@ -1,0 +1,12 @@
+{
+  "id": "adv_002",
+  "subject": "Google is Hiring 50,000 Engineers — Report",
+  "body": "According to a Bloomberg report published today, Google plans to hire 50,000 engineers globally in 2026. The hiring spree focuses on AI and cloud divisions. This is the largest expansion in the company's history.",
+  "attachment_texts": {},
+  "correct_tab": "News",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 1,
+  "difficulty": "hard",
+  "adversarial": true
+}

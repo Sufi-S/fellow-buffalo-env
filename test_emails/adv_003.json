@@ -1,0 +1,12 @@
+{
+  "id": "adv_003",
+  "subject": "URGENT: Apply Now — Last 2 Seats Left",
+  "body": "URGENT: Only 2 seats remain for our Advanced Python Bootcamp! Registration closes March 1, 2026. Don't miss this opportunity to upskill with industry experts. Limited seats available!",
+  "attachment_texts": {},
+  "correct_tab": "Events",
+  "correct_color": "red",
+  "correct_deadline": "2026-03-01T23:59:00",
+  "task": 1,
+  "difficulty": "hard",
+  "adversarial": true
+}
