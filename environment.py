@@ -28,6 +28,7 @@ class FellowBuffaloEnv:
         self.max_steps = 10
         self.transitions = []  # For Task 3
         self.done = False
+        self.task1_emails_queue = []  # For Task 3 multi-email mode
         
     def _load_emails(self) -> Dict[int, list]:
         """Load test emails from JSON files"""
@@ -157,18 +158,31 @@ class FellowBuffaloEnv:
     
     def reset(self, task_id: int = 1) -> FellowBuffaloObservation:
         """Reset environment and return first observation"""
+        import random
+        
         self.current_task = task_id
         self.step_count = 0
         self.done = False
         self.transitions = []
         
-        # Get random email for this task (NOT always the first one)
-        emails_for_task = self.emails.get(task_id, [])
-        if emails_for_task:
-            # Pick a random email from the list
-            self.current_email = random.choice(emails_for_task).copy()
+        # For Task 1: multi-email mode (process up to 5 emails)
+        if task_id == 1:
+            emails_for_task = self.emails.get(task_id, [])
+            if emails_for_task:
+                # Take up to 5 emails (or all if less) and randomize
+                max_emails = min(5, len(emails_for_task))
+                self.task1_emails_queue = random.sample(emails_for_task, max_emails)
+                self.current_email = self.task1_emails_queue[0].copy()
+            else:
+                self.task1_emails_queue = []
+                self.current_email = self._create_default_emails()[task_id][0].copy()
         else:
-            self.current_email = self._create_default_emails()[task_id][0].copy()
+            # For Task 2 and 3: single email
+            emails_for_task = self.emails.get(task_id, [])
+            if emails_for_task:
+                self.current_email = random.choice(emails_for_task).copy()
+            else:
+                self.current_email = self._create_default_emails()[task_id][0].copy()
         
         # Create observation
         self.current_observation = FellowBuffaloObservation(
@@ -190,7 +204,7 @@ class FellowBuffaloEnv:
         
         # Calculate reward based on task
         if self.current_task == 1:
-            # Task 1: Classification
+            # Task 1: Classification - Multi-email mode
             correct = {
                 'tab': self.current_email.get('correct_tab'),
                 'color': self.current_email.get('correct_color'),
@@ -201,8 +215,27 @@ class FellowBuffaloEnv:
                 'color': action.color,
                 'deadline': action.deadline
             }
-            reward = task1_grader(correct, agent)
-            self.done = True
+            step_reward = task1_grader(correct, agent)
+            reward += step_reward
+            
+            # Check if there are more emails in the queue
+            if hasattr(self, 'task1_emails_queue') and len(self.task1_emails_queue) > self.step_count:
+                # Load next email
+                self.current_email = self.task1_emails_queue[self.step_count].copy()
+                self.current_observation = FellowBuffaloObservation(
+                    task_id=self.current_task,
+                    step=self.step_count,
+                    email_subject=self.current_email.get('subject', ''),
+                    email_body=self.current_email.get('body', ''),
+                    attachment_texts=self.current_email.get('attachment_texts', {}),
+                    deadline=self.current_email.get('correct_deadline') or self.current_email.get('deadline'),
+                    done=False
+                )
+                # Return with reward so far, episode continues
+                return self.current_observation, reward, False
+            else:
+                # No more emails, episode done
+                self.done = True
             
         elif self.current_task == 2:
             # Task 2: Summary + Tag Cloud

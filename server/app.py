@@ -97,51 +97,62 @@ def get_ai_client():
 
 
 def run_task1_baseline(client, model) -> float:
-    """Run Task 1 baseline"""
+    """Run Task 1 baseline - Multi-email version (5 emails)"""
     try:
         test_env = FellowBuffaloEnv()
         obs = test_env.reset(task_id=1)
+        total_reward = 0.0
+        step_count = 0
+        max_emails = 5
         
         today = datetime.now().strftime('%Y-%m-%d')
         
-        prompt = f"""
-        Today's date is {today}.
+        while not obs.done and step_count < max_emails:
+            step_count += 1
+            
+            prompt = f"""
+            Today's date is {today}.
+            
+            Classify this email:
+            Subject: {obs.email_subject}
+            Body: {obs.email_body[:500]}
+            
+            Return JSON only with: tab, color, deadline
+            tab: Jobs, Internships, News, Sports, Events, Finance, General
+            color: green (future), orange (0-7 days past), red (7+ days past)
+            deadline: ISO datetime or null
+            
+            Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00"}}
+            """
+            
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+                temperature=0.1
+            )
+            
+            content = response.choices[0].message.content
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+            else:
+                data = {}
+            
+            action = FellowBuffaloAction(
+                task_id=1,
+                tab=data.get('tab'),
+                color=data.get('color'),
+                deadline=data.get('deadline')
+            )
+            
+            obs, step_reward, done = test_env.step(action)
+            total_reward += step_reward
+            
+            if done:
+                break
         
-        Classify this email:
-        Subject: {obs.email_subject}
-        Body: {obs.email_body[:500]}
-        
-        Return JSON only with: tab, color, deadline
-        tab: Jobs, Internships, News, Sports, Events, Finance, General
-        color: green (future), orange (0-7 days past), red (7+ days past)
-        deadline: ISO datetime or null
-        
-        Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00"}}
-        """
-        
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.1
-        )
-        
-        content = response.choices[0].message.content
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group())
-        else:
-            data = {}
-        
-        action = FellowBuffaloAction(
-            task_id=1,
-            tab=data.get('tab'),
-            color=data.get('color'),
-            deadline=data.get('deadline')
-        )
-        
-        _, reward, _ = test_env.step(action)
-        return round(reward, 4)
+        return round(total_reward, 4)
         
     except Exception as e:
         print(f"Task 1 baseline error: {e}")
