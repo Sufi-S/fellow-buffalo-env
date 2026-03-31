@@ -352,7 +352,6 @@ async def tasks() -> Dict[str, Any]:
     }
 
 
-
 @app.post("/baseline")
 async def baseline() -> BaselineResponse:
     """Run baseline inference and return scores - FIXED: Direct execution"""
@@ -424,8 +423,15 @@ async def debug():
     
     return result
 
-if __name__ == "__main__":
+
+def main():
+    """Main entry point for the server"""
     import uvicorn
     print("Starting Fellow Buffalo OpenEnv Server...")
     print(f"GROQ_API_KEY configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
+    print(f"Server running on http://0.0.0.0:7860")
     uvicorn.run(app, host="0.0.0.0", port=7860)
+
+
+if __name__ == "__main__":
+    main()
