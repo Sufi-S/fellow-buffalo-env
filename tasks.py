@@ -10,25 +10,26 @@ from typing import Dict, Any, List, Optional
 from openai import OpenAI
 
 
-# Load Groq API key for Task 2 grader (if available)
-def load_env_file(filepath='.env'):
-    """Load environment variables from .env file"""
-    if os.path.exists(filepath):
-        with open(filepath, 'rb') as f:
-            content = f.read()
-        
-        # Remove BOM if present
-        if content.startswith(b'\xef\xbb\xbf'):
-            content = content[3:]
-        
-        text = content.decode('utf-8')
-        for line in text.splitlines():
-            line = line.strip()
-            if line and not line.startswith('#'):
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
-        return True
+# Load Groq API key for Task 2 grader - looks in current or parent dir
+def load_env_file():
+    """Load .env from current dir or parent dir"""
+    for filepath in ['.env', '../.env']:
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            
+            # Remove BOM if present
+            if content.startswith(b'\xef\xbb\xbf'):
+                content = content[3:]
+            
+            text = content.decode('utf-8')
+            for line in text.splitlines():
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+            return True
     return False
 
 
@@ -49,25 +50,30 @@ def get_client():
 
 def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
     """
-    Task 1: Email Classification
+    Task 1: Email Classification with Confidence Scoring
     Scores: tab (0.33), color (0.33), deadline (0.34)
-    
-    Args:
-        correct: Dictionary with correct tab, color, deadline
-        agent: Dictionary with agent's tab, color, deadline
-    
-    Returns:
-        Score between 0.0 and 1.0
+    Confidence bonus/penalty applied to tab score
     """
     score = 0.0
+    confidence = agent.get('confidence', 50)
+    confidence = max(0, min(100, confidence or 50))
     
-    # Tab (0.33)
+    # Tab (0.33) - with confidence bonus/penalty
     if agent.get('tab') == correct.get('tab'):
-        score += 0.33
+        # Correct answer: bonus for high confidence
+        bonus = (confidence - 50) / 500  # Max +0.10 at confidence 100
+        score += 0.33 + max(0.0, round(bonus, 3))
+    else:
+        # Wrong answer: penalty for high confidence
+        penalty = confidence / 1000  # Max -0.10 at confidence 100
+        score -= round(penalty, 3)
     
     # Color (0.33)
     if agent.get('color') == correct.get('color'):
         score += 0.33
+    else:
+        # Small penalty for wrong color
+        score -= confidence / 2000
     
     # Deadline (0.34)
     agent_deadline = agent.get('deadline')
@@ -81,12 +87,20 @@ def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
             agent_dt = datetime.fromisoformat(agent_deadline.replace('Z', '+00:00'))
             correct_dt = datetime.fromisoformat(correct_deadline.replace('Z', '+00:00'))
             diff_days = abs((agent_dt - correct_dt).days)
-            if diff_days <= 1:
+            if diff_days == 0:
+                score += 0.34
+            elif diff_days <= 1:
                 score += 0.17  # Half credit
+            elif diff_days <= 3:
+                score += 0.10
+            elif diff_days <= 7:
+                score += 0.05
         except:
             pass
+    elif correct_deadline is None and agent_deadline is None:
+        score += 0.34  # Both correctly have no deadline
     
-    return round(score, 2)
+    return round(max(0.0, min(1.0, score)), 2)
 
 
 def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> float:
@@ -321,12 +335,16 @@ if __name__ == "__main__":
     # Test the graders
     print("Testing Task 1 Grader...")
     correct = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00"}
-    agent = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00"}
-    print(f"Perfect score: {task1_grader(correct, agent)}")
+    agent = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 100}
+    print(f"Perfect score with high confidence: {task1_grader(correct, agent)}")
     
     # Test partial deadline
-    agent_wrong = {"tab": "Jobs", "color": "green", "deadline": "2025-04-16T23:59:00"}
-    print(f"Partial deadline: {task1_grader(correct, agent_wrong)}")
+    agent_wrong = {"tab": "Jobs", "color": "green", "deadline": "2025-04-16T23:59:00", "confidence": 100}
+    print(f"Partial deadline with high confidence: {task1_grader(correct, agent_wrong)}")
+    
+    # Test wrong answer with confidence
+    agent_wrong_tab = {"tab": "Finance", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 100}
+    print(f"Wrong tab with high confidence: {task1_grader(correct, agent_wrong_tab)}")
     
     print("\nTesting Task 2 Grader...")
     email = "We are excited to announce a new internship program for students interested in AI and machine learning. Applications are open until May 15th."

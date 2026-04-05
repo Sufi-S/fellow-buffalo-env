@@ -10,22 +10,23 @@ import re
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
-# Load .env file manually (handles Windows BOM) - MUST BE FIRST
-def load_env_file(filepath='.env'):
-    """Load environment variables from .env file"""
-    if os.path.exists(filepath):
-        with open(filepath, 'rb') as f:
-            content = f.read()
-        if content.startswith(b'\xef\xbb\xbf'):
-            content = content[3:]
-        text = content.decode('utf-8')
-        for line in text.splitlines():
-            line = line.strip()
-            if line and not line.startswith('#'):
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
-        return True
+# Load .env file manually (handles Windows BOM) - looks in current or parent dir
+def load_env_file():
+    """Load .env from current dir or parent dir"""
+    for filepath in ['.env', '../.env']:
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            if content.startswith(b'\xef\xbb\xbf'):
+                content = content[3:]
+            text = content.decode('utf-8')
+            for line in text.splitlines():
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+            return True
     return False
 
 # Load environment variables
@@ -113,16 +114,17 @@ def run_task1_baseline(client, model) -> float:
             prompt = f"""
             Today's date is {today}.
             
-            Classify this email:
+            Classify this email and rate your confidence:
             Subject: {obs.email_subject}
             Body: {obs.email_body[:500]}
             
-            Return JSON only with: tab, color, deadline
+            Return JSON only with: tab, color, deadline, confidence
             tab: Jobs, Internships, News, Sports, Events, Finance, General
             color: green (future), orange (0-7 days past), red (7+ days past)
             deadline: ISO datetime or null
+            confidence: 0-100 (how sure you are)
             
-            Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00"}}
+            Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 85}}
             """
             
             response = client.chat.completions.create(
@@ -143,7 +145,8 @@ def run_task1_baseline(client, model) -> float:
                 task_id=1,
                 tab=data.get('tab'),
                 color=data.get('color'),
-                deadline=data.get('deadline')
+                deadline=data.get('deadline'),
+                confidence=data.get('confidence', 50)  # NEW: Add confidence
             )
             
             obs, step_reward, done = test_env.step(action)
@@ -337,7 +340,8 @@ async def tasks() -> Dict[str, Any]:
                 "action_schema": {
                     "tab": "string (Jobs/Internships/News/Sports/Events/Finance/General)",
                     "color": "string (green/orange/red)",
-                    "deadline": "string (ISO datetime or null)"
+                    "deadline": "string (ISO datetime or null)",
+                    "confidence": "integer (0-100)"
                 }
             },
             {

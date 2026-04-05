@@ -11,25 +11,26 @@ import re
 from typing import Optional
 import httpx
 
-# Load .env file manually (handles Windows BOM)
-def load_env_file(filepath='.env'):
-    """Load environment variables from .env file"""
-    if os.path.exists(filepath):
-        with open(filepath, 'rb') as f:
-            content = f.read()
-        
-        # Remove BOM if present
-        if content.startswith(b'\xef\xbb\xbf'):
-            content = content[3:]
-        
-        text = content.decode('utf-8')
-        for line in text.splitlines():
-            line = line.strip()
-            if line and not line.startswith('#'):
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key.strip()] = value.strip()
-        return True
+# Load .env file manually (handles Windows BOM) - looks in current or parent dir
+def load_env_file():
+    """Load .env from current dir or parent dir"""
+    for filepath in ['.env', '../.env']:
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as f:
+                content = f.read()
+            
+            # Remove BOM if present
+            if content.startswith(b'\xef\xbb\xbf'):
+                content = content[3:]
+            
+            text = content.decode('utf-8')
+            for line in text.splitlines():
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip()
+            return True
     return False
 
 # Load .env at startup
@@ -119,19 +120,21 @@ def run_single_task(task_id: int) -> float:
             if observation.get('deadline'):
                 print(f"  📅 Deadline: {observation.get('deadline')}")
             
-            # Build prompt for classification
+            # Build prompt for classification with confidence
             prompt = f"""
-            Classify this email:
-            Subject: {observation.get('email_subject', '')}
-            Body: {observation.get('email_body', '')[:500]}
-            
-            Return JSON with: tab, color, deadline
-            tab options: Jobs, Internships, News, Sports, Events, Finance, General
-            color options: green, orange, red
-            deadline: ISO datetime or null
-            
-            Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00"}}
-            """
+Classify this email and rate your confidence:
+
+Subject: {observation.get('email_subject', '')}
+Body: {observation.get('email_body', '')[:500]}
+
+Return JSON with: tab, color, deadline, confidence
+tab options: Jobs, Internships, News, Sports, Events, Finance, General
+color options: green, orange, red
+deadline: ISO datetime or null
+confidence: 0-100 (how sure are you? 100 = extremely confident)
+
+Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 85}}
+"""
             
             # Get AI response
             ai_response = call_ai(prompt)
@@ -152,11 +155,12 @@ def run_single_task(task_id: int) -> float:
                 tab=data.get('tab'),
                 color=data.get('color'),
                 deadline=data.get('deadline'),
+                confidence=data.get('confidence', 50),  # NEW: Add confidence
                 summary=None,
                 tag_cloud=None,
                 lifecycle_decisions=None
             )
-            print(f"  🤖 AI predicted: tab={action.tab}, color={action.color}, deadline={action.deadline}")
+            print(f"  🤖 AI predicted: tab={action.tab}, color={action.color}, deadline={action.deadline}, confidence={action.confidence}")
             
             # Step
             try:
@@ -181,7 +185,8 @@ def run_single_task(task_id: int) -> float:
                 print(f"\n  ✅ Task completed after {email_count} emails")
                 break
         
-        print(f"\n📊 Task 1 final score: {total_reward:.4f} (from {email_count} emails)")
+        # UPDATED: Show score as X/5.0
+        print(f"\n📊 Task 1 final score: {total_reward:.4f} / 5.0 (from {email_count} emails)")
     
     elif task_id == 2:
         # Task 2: Single email
@@ -350,7 +355,12 @@ def main():
         print('='*40)
         score = run_single_task(task_id)
         scores[f"task_{task_id}"] = round(score, 4)
-        print(f"\n📊 Task {task_id} final score: {score:.4f}")
+        
+        # UPDATED: Show score with denominator based on task
+        if task_id == 1:
+            print(f"\n📊 Task {task_id} final score: {score:.4f} / 5.0")
+        else:
+            print(f"\n📊 Task {task_id} final score: {score:.4f} / 1.0")
     
     print("\n" + "=" * 40)
     print("🏆 FINAL SCORES:")
