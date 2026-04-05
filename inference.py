@@ -245,7 +245,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
     
     else:  # task_id == 3
         # Task 3: Multiple emails
-        print(f"  📧 Starting Task 3 (lifecycle management)")
+        print(f"  📧 Starting Task 3 (lifecycle management with thread awareness)")
         
         while not observation.get('done', False) and step_count < 20:
             step_count += 1
@@ -257,25 +257,24 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             subject = observation.get('email_subject', '')
             body = observation.get('email_body', '')[:500]
             deadline_str = observation.get('deadline', '')
+            today = datetime.now().strftime('%Y-%m-%d')
             
+            # Updated prompt with thread awareness
             prompt = f"""
-            You are managing email lifecycle. Analyze this email and decide its status.
-            
-            Email subject: {subject}
-            Email body: {body}
-            Deadline: {deadline_str}
-            
-            Rules:
-            - green: deadline is in the future (more than 0 days away)
-            - orange: deadline just passed (0 to 7 days ago)  
-            - red: deadline passed more than 7 days ago
-            
-            Also decide which group this email belongs to.
-            Group options: internships_q1, jobs_q1, finance_q1, events_q1, news_q1
-            
-            Return ONLY valid JSON with these exact fields:
-            {{"color": "green", "group": "internships_q1"}}
-            """
+Today is {today}.
+Email subject: {subject}
+Deadline: {deadline_str}
+
+Decide color and group for archiving.
+color: green (future), orange (0-7 days past), red (7+ days past)
+group: internships_q1, jobs_q1, finance_q1, events_q1, news_q1, general_q1
+
+IMPORTANT: If this email is part of a series (e.g., application → interview → offer),
+assign the SAME group to all emails in that thread.
+
+Return JSON only:
+{{"color": "green", "group": "internships_q1", "thread_id": "google_intern_2026"}}
+"""
             
             ai_response = call_ai(prompt)
             
@@ -292,6 +291,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             color = data.get('color', 'green')
             group = data.get('group', 'general_q1')
             
+            # Updated action creation with thread_id
             action = FellowBuffaloAction(
                 task_id=task_id,
                 tab=None,
@@ -303,10 +303,11 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                     'color': color,
                     'group': group,
                     'deadline': observation.get('deadline'),
-                    'email_id': observation.get('email_subject', '')[:20]
+                    'email_id': observation.get('email_subject', '')[:20],
+                    'thread_id': data.get('thread_id', '')  # NEW: Add thread_id
                 }]
             )
-            print(f"  🤖 AI decision: color={color}, group={group}")
+            print(f"  🤖 AI decision: color={color}, group={group}, thread_id={data.get('thread_id', '')[:30]}")
             
             try:
                 step_response = httpx.post(
@@ -371,4 +372,5 @@ def main():
 
 
 if __name__ == "__main__":
+    from datetime import datetime
     main()

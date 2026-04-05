@@ -169,77 +169,80 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> f
 
 def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     """
-    Task 3: Lifecycle Management
-    Scores based on correct color for the deadline (0.1 each, max 0.8)
-    + grouping (0.2 max)
-    
-    Args:
-        transitions: List of lifecycle decisions from agent
-        correct_groups: List of expected group names
-    
-    Returns:
-        Score between 0.0 and 1.0
+    Task 3: Lifecycle Management - Fixed scoring
+    - Color correctness: normalized by number of emails (max 0.8)
+    - Grouping: up to 0.15
+    - Thread bonus: up to 0.05
     """
     if not transitions:
         return 0.0
-    
-    score = 0.0
-    
+
+    total_emails = len(transitions)
+    if total_emails == 0:
+        return 0.0
+
+    # Color score (max 0.8) - normalized by actual email count
+    per_email_color_score = 0.8 / total_emails
+    color_score = 0.0
+
     for t in transitions:
         color = t.get('color', '').lower()
         deadline_str = t.get('deadline', '')
         
-        # Check if color is CORRECT for the deadline
+        # Determine correct color based on deadline
+        correct_color = 'green'  # default
         if deadline_str:
             try:
+                from datetime import datetime, timezone
                 deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
-                
-                # Make timezone-aware comparison
                 if deadline.tzinfo:
                     now = datetime.now(timezone.utc)
                 else:
                     now = datetime.now()
-                    # Make deadline naive if needed
                     deadline = deadline.replace(tzinfo=None)
-                
                 days_diff = (deadline - now).days
                 
-                # Correct color logic
-                if color == 'green' and days_diff > 0:
-                    score += 0.1   # Future deadline → green correct
-                elif color == 'orange' and -7 <= days_diff <= 0:
-                    score += 0.1   # Just passed → orange correct
-                elif color == 'red' and days_diff < -7:
-                    score += 0.1   # Old → red correct
+                if days_diff > 0:
+                    correct_color = 'green'
+                elif -7 <= days_diff <= 0:
+                    correct_color = 'orange'
                 else:
-                    score += 0.02   # Wrong color for this deadline (small penalty)
-            except Exception as e:
-                print(f"Date parsing error: {e}")
-                # Can't parse deadline, give small credit for valid color
-                if color in ['green', 'orange', 'red']:
-                    score += 0.05
+                    correct_color = 'red'
+            except:
+                correct_color = 'green'
         else:
-            # No deadline - green is correct default
-            if color == 'green':
-                score += 0.1
-            elif color in ['orange', 'red']:
-                score += 0.02  # Wrong color for no-deadline email
+            correct_color = 'green'
+        
+        # Award normalized score only if color matches
+        if color == correct_color:
+            color_score += per_email_color_score
     
-    # Cap color score at 0.8
-    color_score = min(score, 0.8)
+    # Cap at 0.8
+    color_score = min(color_score, 0.8)
     
-    # Score grouping (0.2 max)
+    # Grouping score (max 0.15)
     grouping_score = 0.0
     agent_groups = [t.get('group', '').lower() for t in transitions if t.get('group')]
-    
     if agent_groups and correct_groups:
         correct_set = set(g.lower() for g in correct_groups)
         matches = sum(1 for g in agent_groups if g in correct_set)
         ratio = matches / max(len(correct_groups), 1)
-        grouping_score = round(ratio * 0.2, 2)
+        grouping_score = round(ratio * 0.15, 2)
     
-    final_score = color_score + grouping_score
-    return round(min(final_score, 1.0), 2)
+    # Thread bonus (max 0.05)
+    thread_bonus = 0.0
+    thread_groups = {}
+    for t in transitions:
+        tid = t.get('thread_id')
+        if tid:
+            thread_groups.setdefault(tid, []).append(t.get('group', ''))
+    for tid, groups in thread_groups.items():
+        if len(groups) > 1 and len(set(groups)) == 1:
+            thread_bonus += 0.025
+    thread_bonus = min(thread_bonus, 0.05)
+    
+    final_score = min(color_score + grouping_score + thread_bonus, 1.0)
+    return round(final_score, 2)
 
 
 def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, Any]:
@@ -367,6 +370,14 @@ if __name__ == "__main__":
     ]
     correct_groups = ["internships_q1", "jobs_q1", "finance_q1"]
     print(f"Correct colors score: {task3_grader(transitions_correct, correct_groups)}")
+    
+    # Test with thread bonus
+    transitions_with_thread = [
+        {"color": "green", "deadline": future, "group": "internships_q1", "thread_id": "thread_123"},
+        {"color": "orange", "deadline": recent, "group": "internships_q1", "thread_id": "thread_123"},
+        {"color": "red", "deadline": old, "group": "jobs_q1", "thread_id": "thread_456"}
+    ]
+    print(f"Thread bonus score: {task3_grader(transitions_with_thread, correct_groups)}")
     
     # Test with incorrect colors
     transitions_wrong = [
