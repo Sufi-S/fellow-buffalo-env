@@ -14,7 +14,8 @@ class FellowBuffaloAction(BaseModel):
     tab: Optional[str] = None  # Jobs, Internships, News, Sports, Events, Finance, General
     color: Optional[str] = None  # green, orange, red
     deadline: Optional[str] = None  # ISO format datetime or null
-    confidence: Optional[int] = None
+    confidence: Optional[int] = None  # 0-100 confidence score
+    account: Optional[str] = None  # NEW: "primary" or "archive"
     summary: Optional[str] = None  # AI-generated summary
     tag_cloud: Optional[str] = None  # Pipe-separated keywords
     lifecycle_decisions: Optional[List[Dict[str, Any]]] = None  # For Task 3

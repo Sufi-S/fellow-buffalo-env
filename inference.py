@@ -112,7 +112,7 @@ def run_single_task(task_id: int) -> float:
     if task_id == 1:
         print(f"  📧 Starting multi-email Task 1 (will process multiple emails)")
         
-        while not observation.get('done', False) and step_count < 20:
+        while not observation.get('done', False) and step_count < 50:
             step_count += 1
             email_count += 1
             
@@ -155,7 +155,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 tab=data.get('tab'),
                 color=data.get('color'),
                 deadline=data.get('deadline'),
-                confidence=data.get('confidence', 50),  # NEW: Add confidence
+                confidence=data.get('confidence', 50),
                 summary=None,
                 tag_cloud=None,
                 lifecycle_decisions=None
@@ -245,9 +245,9 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
     
     else:  # task_id == 3
         # Task 3: Multiple emails
-        print(f"  📧 Starting Task 3 (lifecycle management with thread awareness)")
+        print(f"  📧 Starting Task 3 (lifecycle management with temporal reasoning and storage monitoring)")
         
-        while not observation.get('done', False) and step_count < 20:
+        while not observation.get('done', False) and step_count < 50:
             step_count += 1
             
             print(f"\n  📧 Email {step_count}: {observation.get('email_subject', '')[:60]}...")
@@ -257,23 +257,45 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             subject = observation.get('email_subject', '')
             body = observation.get('email_body', '')[:500]
             deadline_str = observation.get('deadline', '')
+            from datetime import datetime
             today = datetime.now().strftime('%Y-%m-%d')
             
-            # Updated prompt with thread awareness
+            # Get storage AND temporal info from metadata
+            metadata = observation.get('metadata', {})
+            storage_used = metadata.get('storage_used_gb', 8.5)
+            storage_max = metadata.get('storage_max_gb', 15.0)
+            storage_percent = metadata.get('storage_percent', 56.7)
+            storage_warning = metadata.get('storage_warning', False)
+            storage_critical = metadata.get('storage_critical', False)
+            
+            # NEW: Get simulated date
+            simulated_date = metadata.get('simulated_date', datetime.now().strftime('%Y-%m-%d'))
+            
+            # Updated prompt with simulated date
             prompt = f"""
-Today is {today}.
+IMPORTANT: The current date in this simulation is {simulated_date}.
+(This may be different from today's real date. Use THIS date for all deadline calculations.)
+
+Today's real date is {today} (for reference only - use {simulated_date} for decisions).
+
 Email subject: {subject}
 Deadline: {deadline_str}
+Storage: {storage_used:.1f} GB of {storage_max:.0f} GB ({storage_percent:.0f}% full)
+Storage warning: {'YES - over 12GB' if storage_warning else 'No'}
+Storage critical: {'YES - over 14GB, MUST RELAY!' if storage_critical else 'No'}
 
-Decide color and group for archiving.
-color: green (future), orange (0-7 days past), red (7+ days past)
-group: internships_q1, jobs_q1, finance_q1, events_q1, news_q1, general_q1
+Based on the SIMULATED DATE ({simulated_date}), decide:
+- color: green (deadline is AFTER {simulated_date})
+- orange (deadline was 0-7 days BEFORE {simulated_date})
+- red (deadline was MORE than 7 days before {simulated_date})
+- group: internships_q1, jobs_q1, finance_q1, events_q1, news_q1, general_q1
+- account: primary (active emails) or archive (old/red emails)
+- trigger_relay: true ONLY if storage is critical (>14 GB), otherwise false
 
-IMPORTANT: If this email is part of a series (e.g., application → interview → offer),
-assign the SAME group to all emails in that thread.
+If storage is critical (>14 GB), you MUST trigger relay by setting trigger_relay=true
 
 Return JSON only:
-{{"color": "green", "group": "internships_q1", "thread_id": "google_intern_2026"}}
+{{"color": "red", "group": "finance_q1", "account": "archive", "trigger_relay": false, "thread_id": "vit_fee_2026"}}
 """
             
             ai_response = call_ai(prompt)
@@ -290,8 +312,10 @@ Return JSON only:
             
             color = data.get('color', 'green')
             group = data.get('group', 'general_q1')
+            account = data.get('account', 'primary')
+            trigger_relay = data.get('trigger_relay', False)
             
-            # Updated action creation with thread_id
+            # Updated action creation with account, thread_id, and trigger_relay
             action = FellowBuffaloAction(
                 task_id=task_id,
                 tab=None,
@@ -302,12 +326,14 @@ Return JSON only:
                 lifecycle_decisions=[{
                     'color': color,
                     'group': group,
+                    'account': account,
+                    'trigger_relay': trigger_relay,
                     'deadline': observation.get('deadline'),
                     'email_id': observation.get('email_subject', '')[:20],
-                    'thread_id': data.get('thread_id', '')  # NEW: Add thread_id
+                    'thread_id': data.get('thread_id', '')
                 }]
             )
-            print(f"  🤖 AI decision: color={color}, group={group}, thread_id={data.get('thread_id', '')[:30]}")
+            print(f"  🤖 AI decision: color={color}, group={group}, account={account}, trigger_relay={trigger_relay}, thread_id={data.get('thread_id', '')[:30]}")
             
             try:
                 step_response = httpx.post(
@@ -372,5 +398,4 @@ def main():
 
 
 if __name__ == "__main__":
-    from datetime import datetime
     main()

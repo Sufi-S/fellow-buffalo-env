@@ -1,0 +1,12 @@
+{
+  "id": "att03",
+  "subject": "Internship Certificate \u2014 Summer 2025",
+  "body": "Please find your internship completion certificate attached.",
+  "attachment_texts": {
+    "certificate.pdf": "INTERNSHIP COMPLETION CERTIFICATE\nThis is to certify that Azam Sufiyan S has successfully completed\na 2-month internship at Google India Pvt Ltd\nDuration: June 1 - July 31, 2025\nProject: ML Pipeline Optimization\nPerformance Rating: Outstanding\nSigned: HR Manager, Google India"
+  },
+  "correct_tab": "Internships",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 2
+}

@@ -7,7 +7,7 @@ import json
 import os
 import random  # Added for random email selection
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
 from tasks import task1_grader, task2_grader, task3_grader
@@ -29,6 +29,16 @@ class FellowBuffaloEnv:
         self.transitions = []  # For Task 3
         self.done = False
         self.task1_emails_queue = []  # For Task 3 multi-email mode
+        
+        # Storage simulation variables
+        self.storage_used_gb = 8.5
+        self.storage_max_gb = 15.0
+        self.storage_account_index = 1
+        self.storage_warning_triggered = False
+        
+        # NEW: Temporal reasoning variables
+        self.simulated_date = None  # Will be set in reset
+        self.days_per_step = 2  # Each step advances 2 days
         
     def _load_emails(self) -> Dict[int, list]:
         """Load test emails from JSON files"""
@@ -159,11 +169,17 @@ class FellowBuffaloEnv:
     def reset(self, task_id: int = 1) -> FellowBuffaloObservation:
         """Reset environment and return first observation"""
         import random
+        from datetime import datetime, timedelta
         
         self.current_task = task_id
         self.step_count = 0
         self.done = False
         self.transitions = []
+        self.storage_used_gb = 8.5
+        self.storage_warning_triggered = False
+        
+        # NEW: Initialize simulated date (starting March 1, 2026)
+        self.simulated_date = datetime(2026, 3, 1)
         
         # For Task 1: multi-email mode (process up to 5 emails)
         if task_id == 1:
@@ -184,7 +200,7 @@ class FellowBuffaloEnv:
             else:
                 self.current_email = self._create_default_emails()[task_id][0].copy()
         
-        # Create observation
+        # Create observation with storage AND temporal metadata
         self.current_observation = FellowBuffaloObservation(
             task_id=task_id,
             step=0,
@@ -192,7 +208,18 @@ class FellowBuffaloEnv:
             email_body=self.current_email.get('body', ''),
             attachment_texts=self.current_email.get('attachment_texts', {}),
             deadline=self.current_email.get('correct_deadline') or self.current_email.get('deadline'),
-            done=False
+            done=False,
+            metadata={
+                "storage_used_gb": self.storage_used_gb,
+                "storage_max_gb": self.storage_max_gb,
+                "storage_percent": round((self.storage_used_gb / self.storage_max_gb) * 100, 1),
+                "storage_warning": self.storage_used_gb > 12.0,
+                "storage_account": f"Mail_{chr(ord('X') + self.storage_account_index - 1)}",
+                # NEW: Temporal metadata
+                "simulated_date": self.simulated_date.strftime('%Y-%m-%d'),
+                "simulated_date_iso": self.simulated_date.isoformat(),
+                "days_per_step": self.days_per_step
+            }
         )
         
         return self.current_observation
@@ -238,33 +265,92 @@ class FellowBuffaloEnv:
                 self.done = True
             
         elif self.current_task == 2:
-            # Task 2: Summary + Tag Cloud
+            # Task 2: Summary + Tag Cloud with Rich Attachment Understanding
             reward = task2_grader(
                 self.current_email.get('body', ''),
                 action.summary or '',
-                action.tag_cloud or ''
+                action.tag_cloud or '',
+                self.current_email.get('attachment_texts', {})
             )
             self.done = True
             
         elif self.current_task == 3:
-            # Task 3: Lifecycle Management
+            # NEW: Advance simulated time each step
+            from datetime import timedelta
+            self.simulated_date += timedelta(days=self.days_per_step)
+            
+            # Simulate storage usage increase with each email (0.05 to 0.3 GB per email)
+            import random
+            email_size_gb = random.uniform(0.05, 0.3)  # 50MB to 300MB per email
+            self.storage_used_gb += email_size_gb
+            
+            # Check storage warning (at 12 GB - 80% full)
+            storage_warning = self.storage_used_gb > 12.0
+            storage_critical = self.storage_used_gb >= 14.0  # 14 GB - almost full
+            
+            # Storage relay reward/penalty
+            storage_reward = 0.0
+            
+            # NEW: Determine correct color based on SIMULATED DATE, not real date
+            correct_color_for_step = 'green'
+            deadline_str = self.current_email.get('deadline', '')
+            if deadline_str:
+                try:
+                    from datetime import datetime
+                    deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                    # Use simulated_date for comparison
+                    days_diff = (deadline - self.simulated_date).days
+                    
+                    if days_diff > 0:
+                        correct_color_for_step = 'green'
+                    elif -7 <= days_diff <= 0:
+                        correct_color_for_step = 'orange'
+                    else:
+                        correct_color_for_step = 'red'
+                except:
+                    correct_color_for_step = 'green'
+            
+            # Check if agent triggered relay when critical
             if action.lifecycle_decisions:
-                # Add deadline to each transition for proper grading
+                decision = action.lifecycle_decisions[-1]
+                trigger_relay = decision.get('trigger_relay', False)
+                agent_color = decision.get('color', 'green')
+                
+                # Storage relay logic
+                if storage_critical and trigger_relay:
+                    storage_reward = 0.15  # Bonus for triggering relay at right time
+                    # Reset storage for new account
+                    self.storage_used_gb = 0.5
+                    self.storage_account_index += 1
+                    print(f"  💾 Storage relay triggered! Moving to {chr(ord('X') + self.storage_account_index - 1)} account")
+                elif storage_critical and not trigger_relay:
+                    storage_reward = -0.1  # Penalty for not triggering relay
+                elif not storage_critical and trigger_relay:
+                    storage_reward = -0.05  # Small penalty for premature relay
+                
+                # Add temporal info to action decisions for grading
                 for decision in action.lifecycle_decisions:
                     decision['deadline'] = self.current_email.get('deadline')
-                self.transitions.extend(action.lifecycle_decisions)
+                    decision['storage_used'] = self.storage_used_gb
+                    decision['storage_warning'] = storage_warning
+                    decision['simulated_date'] = self.simulated_date.isoformat()  # NEW
+                    decision['correct_color_for_step'] = correct_color_for_step  # NEW
+            
+            self.transitions.extend(action.lifecycle_decisions) if action.lifecycle_decisions else None
             
             # Check if we've processed enough emails
             if self.step_count >= len(self.emails.get(3, [])):
                 correct_groups = [e.get('correct_group') for e in self.emails.get(3, []) if e.get('correct_group')]
                 reward = task3_grader(self.transitions, correct_groups)
+                reward += storage_reward  # Add storage reward to final score
+                reward = max(0.0, min(1.0, reward))  # Clamp between 0 and 1
                 self.done = True
             else:
                 # Load next email
                 next_index = self.step_count
                 if next_index < len(self.emails.get(3, [])):
                     self.current_email = self.emails[3][next_index].copy()
-                    # Update observation with new email
+                    # Update observation with storage AND temporal info
                     self.current_observation = FellowBuffaloObservation(
                         task_id=self.current_task,
                         step=self.step_count,
@@ -272,9 +358,21 @@ class FellowBuffaloEnv:
                         email_body=self.current_email.get('body', ''),
                         attachment_texts=self.current_email.get('attachment_texts', {}),
                         deadline=self.current_email.get('deadline'),
-                        done=False
+                        done=False,
+                        metadata={
+                            "storage_used_gb": self.storage_used_gb,
+                            "storage_max_gb": self.storage_max_gb,
+                            "storage_percent": round((self.storage_used_gb / self.storage_max_gb) * 100, 1),
+                            "storage_warning": self.storage_used_gb > 12.0,
+                            "storage_critical": self.storage_used_gb >= 14.0,
+                            "storage_account": f"Mail_{chr(ord('X') + self.storage_account_index - 1)}",
+                            # NEW: Temporal metadata
+                            "simulated_date": self.simulated_date.strftime('%Y-%m-%d'),
+                            "simulated_date_iso": self.simulated_date.isoformat(),
+                            "days_per_step": self.days_per_step
+                        }
                     )
-                    return self.current_observation, 0.0, False
+                    return self.current_observation, storage_reward, False
         
         # Update observation for single-step tasks
         self.current_observation = FellowBuffaloObservation(

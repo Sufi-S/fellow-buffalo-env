@@ -1,0 +1,12 @@
+{
+  "id": "att01",
+  "subject": "Offer Letter \u2014 Software Engineer Meta",
+  "body": "Please find your offer letter attached. Review and sign by the acceptance deadline.",
+  "attachment_texts": {
+    "offer_letter.pdf": "OFFER LETTER\nPosition: Software Engineer L4\nCompany: Meta Platforms Inc\nBase Salary: $185,000\nRSU: $200,000 over 4 years\nSigning Bonus: $20,000\nStart Date: June 1, 2026\nOffer Expires: April 15, 2026\nAcceptance Deadline: April 10, 2026"
+  },
+  "correct_tab": "Jobs",
+  "correct_color": "green",
+  "correct_deadline": "2026-04-10T23:59:00",
+  "task": 2
+}

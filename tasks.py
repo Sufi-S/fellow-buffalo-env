@@ -103,23 +103,16 @@ def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
     return round(max(0.0, min(1.0, score)), 2)
 
 
-def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> float:
+def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, attachment_texts: dict = None) -> float:
     """
-    Task 2: Metadata Generation
+    Task 2: Metadata Generation with Rich Attachment Understanding
     Uses AI to score summary quality (0.5) and tag cloud quality (0.5)
-    
-    Args:
-        email_body: Original email content
-        agent_summary: AI-generated summary
-        agent_tag_cloud: AI-generated tag cloud (pipe-separated)
-    
-    Returns:
-        Score between 0.0 and 1.0
+    Also checks if key information from attachments is extracted
     """
     client = get_client()
     
     if not client:
-        # Fallback: simple length-based scoring if no API
+        # Fallback: simple length-based scoring
         summary_score = min(1.0, len(agent_summary) / 200) if agent_summary else 0.0
         tag_count = len(agent_tag_cloud.split('|')) if agent_tag_cloud else 0
         tag_score = min(1.0, tag_count / 5) if tag_count > 0 else 0.0
@@ -128,19 +121,24 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> f
     summary_score = 0.5
     tag_score = 0.5
     
-    # Score summary
+    # Build attachment context
+    attachment_context = ""
+    if attachment_texts:
+        for fname, ftext in attachment_texts.items():
+            attachment_context += f"\nAttachment {fname}: {ftext[:800]}"
+    
+    # Score summary - check if it captures key info from attachments
     try:
         summary_response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are an evaluator. Score this email summary from 0.0 to 1.0 based on: accuracy (captures main points), completeness (covers key details), and conciseness. Return only the number."},
-                {"role": "user", "content": f"Original email: {email_body[:1000]}\n\nSummary: {agent_summary}"}
+                {"role": "system", "content": "Score this email summary from 0.0 to 1.0. Check: does it capture the main point, key names (company, position), amounts (salary, fee), and dates? Return only the number."},
+                {"role": "user", "content": f"Original email: {email_body[:500]}{attachment_context}\n\nSummary: {agent_summary}"}
             ],
             max_tokens=10,
             temperature=0
         )
         summary_score = float(summary_response.choices[0].message.content.strip())
-        # Clamp to 0-1 range
         summary_score = max(0.0, min(1.0, summary_score))
     except Exception as e:
         print(f"Summary scoring failed: {e}")
@@ -151,8 +149,8 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> f
         tag_response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "Score this tag cloud from 0.0 to 1.0 based on: relevance to email, coverage of key topics, and quality of tags. Return only the number."},
-                {"role": "user", "content": f"Original email: {email_body[:500]}\n\nTag cloud: {agent_tag_cloud}"}
+                {"role": "system", "content": "Score this tag cloud from 0.0 to 1.0. Check: are keywords specific (company names, job titles, amounts), relevant, and useful for search? Return only the number."},
+                {"role": "user", "content": f"Original email: {email_body[:300]}\n\nTag cloud: {agent_tag_cloud}"}
             ],
             max_tokens=10,
             temperature=0
@@ -169,8 +167,10 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str) -> f
 
 def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     """
-    Task 3: Lifecycle Management - Fixed scoring
-    - Color correctness: normalized by number of emails (max 0.8)
+    Task 3: Lifecycle Management with Temporal Reasoning
+    - Color correctness based on SIMULATED DATE (not real date)
+    - Account routing: up to 0.1
+    - Storage relay: up to 0.1
     - Grouping: up to 0.15
     - Thread bonus: up to 0.05
     """
@@ -181,17 +181,51 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     if total_emails == 0:
         return 0.0
 
-    # Color score (max 0.8) - normalized by actual email count
-    per_email_color_score = 0.8 / total_emails
+    # Color score (max 0.6)
+    per_email_color_score = 0.6 / total_emails
     color_score = 0.0
+    correct_colors = 0
 
-    for t in transitions:
+    # Account score (max 0.1)
+    per_email_account_score = 0.1 / total_emails
+    account_score = 0.0
+    correct_accounts = 0
+    
+    # Storage relay score (max 0.1)
+    storage_relay_score = 0.0
+    relay_triggered = False
+    should_have_relayed = False
+
+    for i, t in enumerate(transitions):
         color = t.get('color', '').lower()
+        agent_account = t.get('account', 'primary').lower()
+        trigger_relay = t.get('trigger_relay', False)
+        storage_used = t.get('storage_used', 8.5)
+        
         deadline_str = t.get('deadline', '')
         
-        # Determine correct color based on deadline
-        correct_color = 'green'  # default
-        if deadline_str:
+        # NEW: Get simulated date from transition (if available)
+        simulated_date_str = t.get('simulated_date', None)
+        
+        # Determine correct color based on deadline and SIMULATED DATE
+        correct_color = 'green'
+        if deadline_str and simulated_date_str:
+            try:
+                from datetime import datetime
+                deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                simulated_date = datetime.fromisoformat(simulated_date_str.replace('Z', '+00:00'))
+                days_diff = (deadline - simulated_date).days
+                
+                if days_diff > 0:
+                    correct_color = 'green'
+                elif -7 <= days_diff <= 0:
+                    correct_color = 'orange'
+                else:
+                    correct_color = 'red'
+            except:
+                correct_color = 'green'
+        elif deadline_str:
+            # Fallback to real date if simulated date not available
             try:
                 from datetime import datetime, timezone
                 deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
@@ -213,12 +247,45 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
         else:
             correct_color = 'green'
         
-        # Award normalized score only if color matches
+        # Determine correct account based on color
+        correct_account = 'archive' if correct_color == 'red' else 'primary'
+        
+        # Check if relay should have been triggered (storage > 14 GB)
+        if storage_used >= 14.0:
+            should_have_relayed = True
+        
+        # Award color score
         if color == correct_color:
             color_score += per_email_color_score
+            correct_colors += 1
+        
+        # Award account score
+        if agent_account == correct_account:
+            account_score += per_email_account_score
+            correct_accounts += 1
     
-    # Cap at 0.8
-    color_score = min(color_score, 0.8)
+    # Storage relay score
+    if should_have_relayed:
+        for t in transitions:
+            if t.get('trigger_relay', False):
+                relay_triggered = True
+                break
+        if relay_triggered:
+            storage_relay_score = 0.1
+        else:
+            storage_relay_score = 0.0
+    else:
+        for t in transitions:
+            if t.get('trigger_relay', False):
+                storage_relay_score = -0.05
+                break
+        else:
+            storage_relay_score = 0.05
+    
+    # Cap scores
+    color_score = min(color_score, 0.6)
+    account_score = min(account_score, 0.1)
+    storage_relay_score = max(-0.05, min(0.1, storage_relay_score))
     
     # Grouping score (max 0.15)
     grouping_score = 0.0
@@ -241,8 +308,11 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
             thread_bonus += 0.025
     thread_bonus = min(thread_bonus, 0.05)
     
-    final_score = min(color_score + grouping_score + thread_bonus, 1.0)
-    return round(final_score, 2)
+    # Debug print
+    print(f"  📊 Task 3 debug: Colors: {correct_colors}/{total_emails} correct ({color_score:.3f}), Accounts: {correct_accounts}/{total_emails} correct ({account_score:.3f}), Storage relay: {storage_relay_score:.3f}")
+    
+    final_score = min(color_score + account_score + storage_relay_score + grouping_score + thread_bonus, 1.0)
+    return round(max(0.0, final_score), 2)
 
 
 def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,7 +346,7 @@ def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, 
     }
 
 
-def evaluate_task2(email_body: str, agent_summary: str, agent_tag_cloud: str) -> Dict[str, Any]:
+def evaluate_task2(email_body: str, agent_summary: str, agent_tag_cloud: str, attachment_texts: dict = None) -> Dict[str, Any]:
     """
     Evaluate Task 2 and return detailed results
     
@@ -284,11 +354,12 @@ def evaluate_task2(email_body: str, agent_summary: str, agent_tag_cloud: str) ->
         email_body: Original email content
         agent_summary: Agent's summary
         agent_tag_cloud: Agent's tag cloud
+        attachment_texts: Optional dictionary of attachment texts
     
     Returns:
         Dictionary with score and metadata
     """
-    score = task2_grader(email_body, agent_summary, agent_tag_cloud)
+    score = task2_grader(email_body, agent_summary, agent_tag_cloud, attachment_texts)
     
     return {
         'score': score,
@@ -364,32 +435,32 @@ if __name__ == "__main__":
     old = (datetime.now() - timedelta(days=10)).isoformat()
     
     transitions_correct = [
-        {"color": "green", "deadline": future, "group": "internships_q1"},
-        {"color": "orange", "deadline": recent, "group": "internships_q1"},
-        {"color": "red", "deadline": old, "group": "jobs_q1"}
+        {"color": "green", "deadline": future, "group": "internships_q1", "account": "primary"},
+        {"color": "orange", "deadline": recent, "group": "internships_q1", "account": "primary"},
+        {"color": "red", "deadline": old, "group": "jobs_q1", "account": "archive"}
     ]
     correct_groups = ["internships_q1", "jobs_q1", "finance_q1"]
-    print(f"Correct colors score: {task3_grader(transitions_correct, correct_groups)}")
+    print(f"Correct colors and accounts score: {task3_grader(transitions_correct, correct_groups)}")
     
     # Test with thread bonus
     transitions_with_thread = [
-        {"color": "green", "deadline": future, "group": "internships_q1", "thread_id": "thread_123"},
-        {"color": "orange", "deadline": recent, "group": "internships_q1", "thread_id": "thread_123"},
-        {"color": "red", "deadline": old, "group": "jobs_q1", "thread_id": "thread_456"}
+        {"color": "green", "deadline": future, "group": "internships_q1", "thread_id": "thread_123", "account": "primary"},
+        {"color": "orange", "deadline": recent, "group": "internships_q1", "thread_id": "thread_123", "account": "primary"},
+        {"color": "red", "deadline": old, "group": "jobs_q1", "thread_id": "thread_456", "account": "archive"}
     ]
     print(f"Thread bonus score: {task3_grader(transitions_with_thread, correct_groups)}")
     
     # Test with incorrect colors
     transitions_wrong = [
-        {"color": "red", "deadline": future, "group": "internships_q1"},  # Wrong: future should be green
-        {"color": "green", "deadline": old, "group": "internships_q1"},    # Wrong: old should be red
-        {"color": "orange", "deadline": old, "group": "jobs_q1"}           # Wrong: old should be red
+        {"color": "red", "deadline": future, "group": "internships_q1", "account": "archive"},  # Wrong: future should be green
+        {"color": "green", "deadline": old, "group": "internships_q1", "account": "primary"},    # Wrong: old should be red
+        {"color": "orange", "deadline": old, "group": "jobs_q1", "account": "primary"}           # Wrong: old should be red
     ]
     print(f"Wrong colors score: {task3_grader(transitions_wrong, correct_groups)}")
     
     # Test no deadlines
     transitions_no_deadline = [
-        {"color": "green", "group": "internships_q1"},
-        {"color": "green", "group": "jobs_q1"}
+        {"color": "green", "group": "internships_q1", "account": "primary"},
+        {"color": "green", "group": "jobs_q1", "account": "primary"}
     ]
     print(f"No deadlines score: {task3_grader(transitions_no_deadline, correct_groups)}")

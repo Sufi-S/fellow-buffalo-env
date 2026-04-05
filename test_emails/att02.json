@@ -1,0 +1,12 @@
+{
+  "id": "att02",
+  "subject": "Fee Receipt \u2014 Semester 6",
+  "body": "Your fee payment has been processed. Receipt attached for your records.",
+  "attachment_texts": {
+    "fee_receipt.pdf": "OFFICIAL FEE RECEIPT\nStudent: Azam Sufiyan S\nRoll No: 22BCE1234\nSemester: 6 (Jan-May 2026)\nAmount Paid: Rs 1,25,000\nDate: March 15, 2026\nMode: Online Transfer\nTransaction ID: TXN789456123\nStatus: PAID"
+  },
+  "correct_tab": "Finance",
+  "correct_color": "green",
+  "correct_deadline": null,
+  "task": 2
+}
