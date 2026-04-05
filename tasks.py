@@ -50,30 +50,26 @@ def get_client():
 
 def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
     """
-    Task 1: Email Classification with Confidence Scoring
-    Scores: tab (0.33), color (0.33), deadline (0.34)
-    Confidence bonus/penalty applied to tab score
+    Task 1: Email Classification with Negative Scores
+    Correct = positive, Wrong = negative (teaches agent what NOT to do)
     """
     score = 0.0
     confidence = agent.get('confidence', 50)
     confidence = max(0, min(100, confidence or 50))
     
-    # Tab (0.33) - with confidence bonus/penalty
+    # Tab: correct = +0.33, wrong = -0.15
     if agent.get('tab') == correct.get('tab'):
-        # Correct answer: bonus for high confidence
-        bonus = (confidence - 50) / 500  # Max +0.10 at confidence 100
+        bonus = (confidence - 50) / 500
         score += 0.33 + max(0.0, round(bonus, 3))
     else:
-        # Wrong answer: penalty for high confidence
-        penalty = confidence / 1000  # Max -0.10 at confidence 100
-        score -= round(penalty, 3)
+        penalty = confidence / 500  # Max -0.20 at confidence 100
+        score -= 0.15 + round(penalty, 3)
     
-    # Color (0.33)
+    # Color: correct = +0.33, wrong = -0.15
     if agent.get('color') == correct.get('color'):
         score += 0.33
     else:
-        # Small penalty for wrong color
-        score -= confidence / 2000
+        score -= 0.15
     
     # Deadline (0.34)
     agent_deadline = agent.get('deadline')
@@ -82,7 +78,6 @@ def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
     if agent_deadline == correct_deadline:
         score += 0.34
     elif agent_deadline and correct_deadline:
-        # Partial credit if dates are within 1 day
         try:
             agent_dt = datetime.fromisoformat(agent_deadline.replace('Z', '+00:00'))
             correct_dt = datetime.fromisoformat(correct_deadline.replace('Z', '+00:00'))
@@ -90,17 +85,23 @@ def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
             if diff_days == 0:
                 score += 0.34
             elif diff_days <= 1:
-                score += 0.17  # Half credit
+                score += 0.17
             elif diff_days <= 3:
                 score += 0.10
             elif diff_days <= 7:
                 score += 0.05
+            else:
+                score -= 0.10  # Far off deadline = penalty
         except:
-            pass
+            score -= 0.05
     elif correct_deadline is None and agent_deadline is None:
-        score += 0.34  # Both correctly have no deadline
+        score += 0.34
+    elif correct_deadline is not None and agent_deadline is None:
+        score -= 0.10  # Missed deadline = penalty
+    elif correct_deadline is None and agent_deadline is not None:
+        score -= 0.05  # False deadline = small penalty
     
-    return round(max(0.0, min(1.0, score)), 2)
+    return round(max(-0.5, min(1.0, score)), 2)  # Range: -0.5 to 1.0
 
 
 def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, attachment_texts: dict = None) -> float:
@@ -167,8 +168,8 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, atta
 
 def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     """
-    Task 3: Lifecycle Management with Temporal Reasoning
-    - Color correctness based on SIMULATED DATE (not real date)
+    Task 3: Lifecycle Management with Temporal Reasoning and Negative Scoring
+    - Color correctness: +0.1 for correct, -0.05 for wrong
     - Account routing: up to 0.1
     - Storage relay: up to 0.1
     - Grouping: up to 0.15
@@ -181,8 +182,7 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     if total_emails == 0:
         return 0.0
 
-    # Color score (max 0.6)
-    per_email_color_score = 0.6 / total_emails
+    # Color score (no max cap, can be negative)
     color_score = 0.0
     correct_colors = 0
 
@@ -204,7 +204,7 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
         
         deadline_str = t.get('deadline', '')
         
-        # NEW: Get simulated date from transition (if available)
+        # Get simulated date from transition (if available)
         simulated_date_str = t.get('simulated_date', None)
         
         # Determine correct color based on deadline and SIMULATED DATE
@@ -254,10 +254,12 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
         if storage_used >= 14.0:
             should_have_relayed = True
         
-        # Award color score
+        # Color score: +0.1 for correct, -0.05 for wrong
         if color == correct_color:
-            color_score += per_email_color_score
+            color_score += 0.1
             correct_colors += 1
+        else:
+            color_score -= 0.05
         
         # Award account score
         if agent_account == correct_account:
@@ -282,8 +284,7 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
         else:
             storage_relay_score = 0.05
     
-    # Cap scores
-    color_score = min(color_score, 0.6)
+    # Cap account and storage scores (color score can remain negative)
     account_score = min(account_score, 0.1)
     storage_relay_score = max(-0.05, min(0.1, storage_relay_score))
     
@@ -309,10 +310,10 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     thread_bonus = min(thread_bonus, 0.05)
     
     # Debug print
-    print(f"  📊 Task 3 debug: Colors: {correct_colors}/{total_emails} correct ({color_score:.3f}), Accounts: {correct_accounts}/{total_emails} correct ({account_score:.3f}), Storage relay: {storage_relay_score:.3f}")
+    print(f"  📊 Task 3 debug: Colors: {correct_colors}/{total_emails} correct (score: {color_score:.3f}), Accounts: {correct_accounts}/{total_emails} correct ({account_score:.3f}), Storage relay: {storage_relay_score:.3f}")
     
-    final_score = min(color_score + account_score + storage_relay_score + grouping_score + thread_bonus, 1.0)
-    return round(max(0.0, final_score), 2)
+    final_score = color_score + account_score + storage_relay_score + grouping_score + thread_bonus
+    return round(max(-0.5, min(1.0, final_score)), 2)  # Range: -0.5 to 1.0
 
 
 def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, Any]:
@@ -396,13 +397,26 @@ def evaluate_task3(transitions: List[Dict], correct_groups: List[str]) -> Dict[s
         'score': score,
         'total_transitions': len(transitions),
         'valid_transitions': valid_transitions,
-        'color_score': min(len(transitions) * 0.1, 0.8),
+        'color_score': color_score_from_transitions(transitions),
         'matching_groups': matching_groups,
         'total_groups': len(correct_groups),
         'agent_groups': agent_groups,
         'expected_groups': correct_groups,
         'transitions': transitions
     }
+
+
+def color_score_from_transitions(transitions: List[Dict]) -> float:
+    """Calculate color score from transitions for display purposes"""
+    if not transitions:
+        return 0.0
+    score = 0.0
+    for t in transitions:
+        if t.get('color', '').lower() == t.get('correct_color', '').lower():
+            score += 0.1
+        else:
+            score -= 0.05
+    return round(max(-0.5, min(0.8, score)), 2)
 
 
 if __name__ == "__main__":
@@ -412,13 +426,17 @@ if __name__ == "__main__":
     agent = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 100}
     print(f"Perfect score with high confidence: {task1_grader(correct, agent)}")
     
-    # Test partial deadline
-    agent_wrong = {"tab": "Jobs", "color": "green", "deadline": "2025-04-16T23:59:00", "confidence": 100}
-    print(f"Partial deadline with high confidence: {task1_grader(correct, agent_wrong)}")
-    
-    # Test wrong answer with confidence
+    # Test wrong tab
     agent_wrong_tab = {"tab": "Finance", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 100}
     print(f"Wrong tab with high confidence: {task1_grader(correct, agent_wrong_tab)}")
+    
+    # Test wrong color
+    agent_wrong_color = {"tab": "Jobs", "color": "red", "deadline": "2025-04-15T23:59:00", "confidence": 50}
+    print(f"Wrong color: {task1_grader(correct, agent_wrong_color)}")
+    
+    # Test wrong deadline
+    agent_wrong_deadline = {"tab": "Jobs", "color": "green", "deadline": "2025-05-15T23:59:00", "confidence": 80}
+    print(f"Wrong deadline (far off): {task1_grader(correct, agent_wrong_deadline)}")
     
     print("\nTesting Task 2 Grader...")
     email = "We are excited to announce a new internship program for students interested in AI and machine learning. Applications are open until May 15th."
@@ -435,32 +453,17 @@ if __name__ == "__main__":
     old = (datetime.now() - timedelta(days=10)).isoformat()
     
     transitions_correct = [
-        {"color": "green", "deadline": future, "group": "internships_q1", "account": "primary"},
-        {"color": "orange", "deadline": recent, "group": "internships_q1", "account": "primary"},
-        {"color": "red", "deadline": old, "group": "jobs_q1", "account": "archive"}
+        {"color": "green", "deadline": future, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat()},
+        {"color": "orange", "deadline": recent, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat()},
+        {"color": "red", "deadline": old, "group": "jobs_q1", "account": "archive", "simulated_date": datetime.now().isoformat()}
     ]
     correct_groups = ["internships_q1", "jobs_q1", "finance_q1"]
-    print(f"Correct colors and accounts score: {task3_grader(transitions_correct, correct_groups)}")
+    print(f"Correct colors (all +0.1 each): {task3_grader(transitions_correct, correct_groups)}")
     
-    # Test with thread bonus
-    transitions_with_thread = [
-        {"color": "green", "deadline": future, "group": "internships_q1", "thread_id": "thread_123", "account": "primary"},
-        {"color": "orange", "deadline": recent, "group": "internships_q1", "thread_id": "thread_123", "account": "primary"},
-        {"color": "red", "deadline": old, "group": "jobs_q1", "thread_id": "thread_456", "account": "archive"}
-    ]
-    print(f"Thread bonus score: {task3_grader(transitions_with_thread, correct_groups)}")
-    
-    # Test with incorrect colors
+    # Test with incorrect colors (should get negative)
     transitions_wrong = [
-        {"color": "red", "deadline": future, "group": "internships_q1", "account": "archive"},  # Wrong: future should be green
-        {"color": "green", "deadline": old, "group": "internships_q1", "account": "primary"},    # Wrong: old should be red
-        {"color": "orange", "deadline": old, "group": "jobs_q1", "account": "primary"}           # Wrong: old should be red
+        {"color": "red", "deadline": future, "group": "internships_q1", "account": "archive", "simulated_date": datetime.now().isoformat()},
+        {"color": "green", "deadline": old, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat()},
+        {"color": "orange", "deadline": old, "group": "jobs_q1", "account": "primary", "simulated_date": datetime.now().isoformat()}
     ]
-    print(f"Wrong colors score: {task3_grader(transitions_wrong, correct_groups)}")
-    
-    # Test no deadlines
-    transitions_no_deadline = [
-        {"color": "green", "group": "internships_q1", "account": "primary"},
-        {"color": "green", "group": "jobs_q1", "account": "primary"}
-    ]
-    print(f"No deadlines score: {task3_grader(transitions_no_deadline, correct_groups)}")
+    print(f"Wrong colors (should be negative): {task3_grader(transitions_wrong, correct_groups)}")

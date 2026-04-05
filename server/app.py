@@ -35,6 +35,7 @@ load_env_file()
 # Now import other modules
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from openai import OpenAI
 
@@ -146,7 +147,7 @@ def run_task1_baseline(client, model) -> float:
                 tab=data.get('tab'),
                 color=data.get('color'),
                 deadline=data.get('deadline'),
-                confidence=data.get('confidence', 50)  # NEW: Add confidence
+                confidence=data.get('confidence', 50)
             )
             
             obs, step_reward, done = test_env.step(action)
@@ -282,7 +283,7 @@ async def root():
     return {
         "name": "Fellow Buffalo",
         "description": "Email triage OpenEnv environment",
-        "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/grader"],
+        "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/grader", "/web"],
         "api_key_configured": bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))
     }
 
@@ -439,12 +440,123 @@ async def debug():
     return result
 
 
+@app.get("/web", response_class=HTMLResponse)
+async def web_interface():
+    """Simple web UI for testing the environment"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Fellow Buffalo - OpenEnv</title>
+        <style>
+            body { font-family: Arial; max-width: 800px; margin: 40px auto; padding: 20px; }
+            button { background: #2E86AB; color: white; padding: 10px 20px; border: none; cursor: pointer; margin: 5px; border-radius: 4px; }
+            button:hover { background: #1A3C5E; }
+            pre { background: #f4f4f4; padding: 15px; border-radius: 4px; overflow-x: auto; }
+            input, select { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 4px; }
+            .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        </style>
+    </head>
+    <body>
+        <h1>Fellow Buffalo — Email Triage OpenEnv</h1>
+        
+        <div class="section">
+            <h2>Reset Environment</h2>
+            <select id="task-id">
+                <option value="1">Task 1 — Email Classification (Easy)</option>
+                <option value="2">Task 2 — Metadata Generation (Medium)</option>
+                <option value="3">Task 3 — Lifecycle Manager (Hard)</option>
+            </select>
+            <button onclick="reset()">Reset</button>
+        </div>
+        
+        <div class="section">
+            <h2>Current Observation</h2>
+            <pre id="observation">Click Reset to start</pre>
+        </div>
+        
+        <div class="section">
+            <h2>Take Action (Task 1)</h2>
+            <select id="tab">
+                <option>Jobs</option><option>Internships</option><option>News</option>
+                <option>Sports</option><option>Events</option><option>Finance</option><option>General</option>
+            </select>
+            <select id="color">
+                <option>green</option><option>orange</option><option>red</option>
+            </select>
+            <input id="deadline" placeholder="Deadline (ISO or leave blank)" style="width:250px">
+            <button onclick="step()">Step</button>
+        </div>
+        
+        <div class="section">
+            <h2>Result</h2>
+            <pre id="result">No action taken yet</pre>
+        </div>
+        
+        <div class="section">
+            <h2>State</h2>
+            <button onclick="getState()">Get State</button>
+            <button onclick="getTasks()">Get Tasks</button>
+            <pre id="state">-</pre>
+        </div>
+        
+        <script>
+            let taskId = 1;
+            
+            async function reset() {
+                taskId = parseInt(document.getElementById('task-id').value);
+                const r = await fetch('/reset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({task_id: taskId})
+                });
+                const data = await r.json();
+                document.getElementById('observation').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('result').textContent = 'Environment reset. Take an action.';
+            }
+            
+            async function step() {
+                const action = {
+                    task_id: taskId,
+                    tab: document.getElementById('tab').value,
+                    color: document.getElementById('color').value,
+                    deadline: document.getElementById('deadline').value || null
+                };
+                const r = await fetch('/step', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action})
+                });
+                const data = await r.json();
+                document.getElementById('observation').textContent = JSON.stringify(data.observation, null, 2);
+                document.getElementById('result').textContent = 
+                    'Reward: ' + data.reward + '\\nDone: ' + data.done;
+            }
+            
+            async function getState() {
+                const r = await fetch('/state');
+                const data = await r.json();
+                document.getElementById('state').textContent = JSON.stringify(data, null, 2);
+            }
+            
+            async function getTasks() {
+                const r = await fetch('/tasks');
+                const data = await r.json();
+                document.getElementById('state').textContent = JSON.stringify(data, null, 2);
+            }
+        </script>
+    </body>
+    </html>
+    """
+
+
 def main():
     """Main entry point for the server"""
     import uvicorn
     print("Starting Fellow Buffalo OpenEnv Server...")
     print(f"GROQ_API_KEY configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
     print(f"Server running on http://0.0.0.0:7860")
+    print(f"Web UI available at http://localhost:7860/web")
     uvicorn.run(app, host="0.0.0.0", port=7860)
 
 
