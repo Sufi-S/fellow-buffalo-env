@@ -6,11 +6,11 @@ Implements reset(), step(), and state() methods.
 import json
 import os
 import random  # Added for random email selection
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timedelta
 
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
-from tasks import task1_grader, task2_grader, task3_grader, task4_grader
+from tasks import task1_grader, task2_grader, task3_grader, task4_grader, task5_grader
 
 
 class FellowBuffaloEnv:
@@ -29,6 +29,7 @@ class FellowBuffaloEnv:
         self.transitions = []  # For Task 3
         self.done = False
         self.task1_emails_queue = []  # For Task 3 multi-email mode
+        self.task5_emails = []  # For Task 5 - list of 10 emails to rank
         
         # Storage simulation variables
         self.storage_used_gb = 8.5
@@ -42,7 +43,7 @@ class FellowBuffaloEnv:
         
     def _load_emails(self) -> Dict[int, list]:
         """Load test emails from JSON files"""
-        emails = {1: [], 2: [], 3: [], 4: []}
+        emails = {1: [], 2: [], 3: [], 4: [], 5: []}
         
         if not os.path.exists(self.test_emails_path):
             return self._create_default_emails()
@@ -59,7 +60,7 @@ class FellowBuffaloEnv:
                     continue
         
         # If no emails found, create defaults
-        for task_id in [1, 2, 3, 4]:
+        for task_id in [1, 2, 3, 4, 5]:
             if not emails[task_id]:
                 emails[task_id] = self._create_default_emails()[task_id]
         
@@ -183,8 +184,24 @@ class FellowBuffaloEnv:
                     "body": "I haven't received the invoice for last month's services. Can you please send it again?",
                     "attachment_texts": {}
                 }
-            ]
+            ],
+            5: self._create_default_task5_emails()
         }
+    
+    def _create_default_task5_emails(self) -> List[Dict]:
+        """Create default emails for Task 5 priority ranking with unique IDs and full content"""
+        return [
+            {"id": "email_urgent_server", "subject": "URGENT: Server Down", "body": "Production server is down. Immediate action required.", "importance": 1, "task": 5},
+            {"id": "email_meeting_today", "subject": "Client Meeting Today at 2PM", "body": "Client meeting scheduled for 2PM today. Please prepare slides.", "importance": 2, "task": 5},
+            {"id": "email_team_update", "subject": "Weekly Team Update", "body": "Weekly team sync tomorrow at 10AM.", "importance": 3, "task": 5},
+            {"id": "email_documentation", "subject": "Project Documentation", "body": "Please review the updated documentation.", "importance": 4, "task": 5},
+            {"id": "email_code_review", "subject": "Code Review Request", "body": "Please review PR #123 when you have time.", "importance": 5, "task": 5},
+            {"id": "email_newsletter", "subject": "Company Newsletter", "body": "Monthly company newsletter attached.", "importance": 6, "task": 5},
+            {"id": "email_lunch", "subject": "Lunch Invitation", "body": "Team lunch this Friday at 1PM.", "importance": 7, "task": 5},
+            {"id": "email_social", "subject": "Social Media Post", "body": "Please like our new LinkedIn post.", "importance": 8, "task": 5},
+            {"id": "email_prize", "subject": "You Won a Prize!", "body": "Congratulations! You've won a free gift card.", "importance": 9, "task": 5},
+            {"id": "email_discount", "subject": "Discount Offer", "body": "50% off on all products today only!", "importance": 10, "task": 5},
+        ]
     
     def reset(self, task_id: int = 1) -> FellowBuffaloObservation:
         """Reset environment and return first observation"""
@@ -212,6 +229,15 @@ class FellowBuffaloEnv:
             else:
                 self.task1_emails_queue = []
                 self.current_email = self._create_default_emails()[task_id][0].copy()
+        elif task_id == 5:
+            # Task 5: Priority Ranking - load 10 emails
+            emails_for_task = self.emails.get(task_id, [])
+            if len(emails_for_task) >= 10:
+                self.task5_emails = random.sample(emails_for_task, 10)
+                self.current_email = self.task5_emails[0]
+            else:
+                self.task5_emails = self._create_default_task5_emails()
+                self.current_email = self.task5_emails[0]
         else:
             # For Task 2, 3, and 4: single email
             emails_for_task = self.emails.get(task_id, [])
@@ -238,7 +264,9 @@ class FellowBuffaloEnv:
                 # NEW: Temporal metadata
                 "simulated_date": self.simulated_date.strftime('%Y-%m-%d'),
                 "simulated_date_iso": self.simulated_date.isoformat(),
-                "days_per_step": self.days_per_step
+                "days_per_step": self.days_per_step,
+                # Task 5 metadata
+                "emails_to_rank": [e['id'] for e in self.task5_emails] if task_id == 5 else []
             }
         )
         
@@ -354,7 +382,7 @@ class FellowBuffaloEnv:
                     decision['storage_used'] = self.storage_used_gb
                     decision['storage_warning'] = storage_warning
                     decision['simulated_date'] = self.simulated_date.isoformat()  # NEW
-                    decision['correct_color_for_step'] = correct_color_for_step  # NEW
+                    decision['expected_color'] = correct_color_for_step  # NEW
             
             self.transitions.extend(action.lifecycle_decisions) if action.lifecycle_decisions else None
             
@@ -403,6 +431,15 @@ class FellowBuffaloEnv:
             )
             self.done = True
         
+        elif self.current_task == 5:
+            # Task 5: Priority Ranking
+            if action.email_ranking:
+                correct_order = [e['id'] for e in self.task5_emails]
+                reward = task5_grader(correct_order, action.email_ranking)
+            else:
+                reward = 0.0
+            self.done = True
+        
         # Update observation for single-step tasks
         self.current_observation = FellowBuffaloObservation(
             task_id=self.current_task,
@@ -419,7 +456,7 @@ class FellowBuffaloEnv:
     
     def state(self) -> FellowBuffaloState:
         """Return current episode state"""
-        task_names = {1: "email-intake", 2: "metadata-generation", 3: "lifecycle-manager", 4: "reply-generation"}
+        task_names = {1: "email-intake", 2: "metadata-generation", 3: "lifecycle-manager", 4: "reply-generation", 5: "priority-ranking"}
         return FellowBuffaloState(
             task_id=self.current_task or 1,
             task_name=task_names.get(self.current_task, "unknown"),

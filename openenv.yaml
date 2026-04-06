@@ -1,6 +1,6 @@
 name: fellow-buffalo
 version: '1.0.0'
-description: 'Email triage environment - train AI to classify, summarize, generate replies, and manage email lifecycle'
+description: 'Email triage environment - train AI to classify, summarize, generate replies, prioritize, and manage email lifecycle'
 author: Azam Sufiyan
 tags:
   - email
@@ -25,6 +25,10 @@ tasks:
     name: reply-generation
     difficulty: medium
     description: 'Generate professional replies to incoming emails with appropriate tone and completeness'
+  - id: task5
+    name: priority-ranking
+    difficulty: hard
+    description: 'Rank 10 emails by priority/urgency to determine which should be addressed first'
 server:
   port: 7860
   health_endpoint: /health

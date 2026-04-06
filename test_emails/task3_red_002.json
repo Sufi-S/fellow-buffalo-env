@@ -1,0 +1,11 @@
+{
+  "id": "task3_red_002",
+  "subject": "Expired Promo Code",
+  "body": "Your discount code expired on 2026-03-17",
+  "attachment_texts": {},
+  "received_date": "2026-03-07",
+  "deadline": "2026-03-17",
+  "correct_group": "general_q1",
+  "task": 3,
+  "expected_color": "red"
+}

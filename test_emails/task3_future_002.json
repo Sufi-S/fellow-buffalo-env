@@ -1,0 +1,11 @@
+{
+  "id": "task3_future_002",
+  "subject": "Upcoming Tech Conference",
+  "body": "Register for TechConf 2026 before 2026-04-26",
+  "attachment_texts": {},
+  "received_date": "2026-04-04",
+  "deadline": "2026-04-26",
+  "correct_group": "events_q1",
+  "task": 3,
+  "expected_color": "green"
+}

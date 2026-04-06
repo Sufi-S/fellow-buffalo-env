@@ -1,0 +1,11 @@
+{
+  "id": "task3_orange_001",
+  "subject": "Hackathon Registration Closed",
+  "body": "Registration for HackIndia 2026 closed on 2026-04-03",
+  "attachment_texts": {},
+  "received_date": "2026-03-27",
+  "deadline": "2026-04-03",
+  "correct_group": "events_q1",
+  "task": 3,
+  "expected_color": "orange"
+}

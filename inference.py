@@ -404,11 +404,79 @@ Return JSON only:
             print(f"Step error: {e}")
             return 0.0
     
+    elif task_id == 5:
+        # Task 5: Priority Ranking - SINGLE STEP
+        print(f"  📧 Ranking 10 emails by priority...")
+        
+        # Get all emails from metadata
+        emails_to_rank = observation.get('metadata', {}).get('emails_to_rank', [])
+        
+        if emails_to_rank:
+            # Use the email IDs from metadata
+            email_list = "\n".join([f"{i+1}. {emails_to_rank[i]}" for i in range(len(emails_to_rank))])
+        else:
+            # Fallback: use subjects from observation
+            email_subjects = []
+            for i in range(10):
+                subject = observation.get(f'email_{i}_subject', '')
+                if subject:
+                    email_subjects.append(subject)
+                else:
+                    email_subjects.append(observation.get('email_subject', ''))
+            email_list = "\n".join([f"{i+1}. {email_subjects[i][:80]}" for i in range(len(email_subjects))])
+        
+        # Build ranking prompt
+        prompt = f"""
+    Rank these 10 emails by priority (1 = most urgent/important, 10 = least important).
+    
+    Rules:
+    - Urgent server issues, client meetings = high priority (1-2)
+    - Work tasks, deadlines = medium priority (3-6)
+    - Newsletters, social media, spam = low priority (7-10)
+    
+    Emails:
+    {email_list}
+    
+    Return JSON with ranking as list of numbers 1-10 in priority order.
+    Example: {{"ranking": [3, 1, 5, 2, 4, 6, 7, 8, 9, 10]}}
+    """
+        
+        ai_response = call_ai(prompt, max_tokens=200)
+        
+        try:
+            json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                ranking = data.get('ranking', list(range(1, 11)))
+            else:
+                ranking = list(range(1, 11))
+        except Exception as e:
+            print(f"JSON parse error: {e}")
+            ranking = list(range(1, 11))
+        
+        # Convert numbers to email IDs (1-index to 0-index)
+        ranking_ids = [f"email_{num-1}" for num in ranking]
+        print(f"  🤖 AI ranking: {ranking_ids[:5]}... (showing first 5)")
+        
+        action = FellowBuffaloAction(
+            task_id=task_id,
+            email_ranking=ranking_ids
+        )
+        
+        step_response = httpx.post(
+            f"{env_url}/step", 
+            json={"action": action.model_dump()}, 
+            timeout=30
+        )
+        result = step_response.json()
+        total_reward = result.get('reward', 0.0)
+        print(f"  💰 Ranking reward: {total_reward:.4f}")
+    
     return total_reward
 
 
 def main():
-    """Run all 4 tasks and print scores"""
+    """Run all 5 tasks and print scores"""
     print("Fellow Buffalo Baseline Agent")
     print("=" * 40)
     
@@ -423,7 +491,7 @@ def main():
     
     scores = {}
     
-    for task_id in [1, 2, 3, 4]:
+    for task_id in [1, 2, 3, 4, 5]:
         print(f"\n{'='*40}")
         print(f"Running Task {task_id}...")
         print('='*40)
@@ -433,6 +501,8 @@ def main():
         # Show score with denominator based on task
         if task_id == 1:
             print(f"\n📊 Task {task_id} final score: {score:.4f} / 5.0")
+        elif task_id == 5:
+            print(f"\n📊 Task {task_id} final score: {score:.4f} / 1.0 (ranking accuracy)")
         else:
             print(f"\n📊 Task {task_id} final score: {score:.4f} / 1.0")
     

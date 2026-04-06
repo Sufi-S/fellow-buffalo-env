@@ -1,0 +1,11 @@
+{
+  "id": "task3_red_001",
+  "subject": "Old Internship Application",
+  "body": "This internship application closed on 2026-03-07",
+  "attachment_texts": {},
+  "received_date": "2026-02-05",
+  "deadline": "2026-03-07",
+  "correct_group": "internships_q1",
+  "task": 3,
+  "expected_color": "red"
+}

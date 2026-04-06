@@ -1,0 +1,11 @@
+{
+  "id": "task3_red_003",
+  "subject": "Old Fee Reminder",
+  "body": "Your semester fee was due on 2025-04-06",
+  "attachment_texts": {},
+  "received_date": "2025-03-02",
+  "deadline": "2025-04-06",
+  "correct_group": "finance_q1",
+  "task": 3,
+  "expected_color": "red"
+}

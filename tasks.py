@@ -252,55 +252,58 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
         # Get simulated date from transition (if available)
         simulated_date_str = t.get('simulated_date', None)
         
-        # Determine correct color based on deadline and SIMULATED DATE
-        correct_color = 'green'
-        if deadline_str and simulated_date_str:
-            try:
-                from datetime import datetime
-                deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
-                simulated_date = datetime.fromisoformat(simulated_date_str.replace('Z', '+00:00'))
-                days_diff = (deadline - simulated_date).days
-                
-                if days_diff > 0:
-                    correct_color = 'green'
-                elif -7 <= days_diff <= 0:
-                    correct_color = 'orange'
-                else:
-                    correct_color = 'red'
-            except:
-                correct_color = 'green'
-        elif deadline_str:
-            # Fallback to real date if simulated date not available
-            try:
-                from datetime import datetime, timezone
-                deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
-                if deadline.tzinfo:
-                    now = datetime.now(timezone.utc)
-                else:
-                    now = datetime.now()
-                    deadline = deadline.replace(tzinfo=None)
-                days_diff = (deadline - now).days
-                
-                if days_diff > 0:
-                    correct_color = 'green'
-                elif -7 <= days_diff <= 0:
-                    correct_color = 'orange'
-                else:
-                    correct_color = 'red'
-            except:
-                correct_color = 'green'
-        else:
-            correct_color = 'green'
+        # Get expected_color from transition (set by environment)
+        expected_color = t.get('correct_color_for_step', '')
         
-        # Determine correct account based on color
-        correct_account = 'archive' if correct_color == 'red' else 'primary'
+        # If expected_color not available, calculate it
+        if not expected_color:
+            if deadline_str and simulated_date_str:
+                try:
+                    from datetime import datetime
+                    deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                    simulated_date = datetime.fromisoformat(simulated_date_str.replace('Z', '+00:00'))
+                    days_diff = (deadline - simulated_date).days
+                    
+                    if days_diff > 0:
+                        expected_color = 'green'
+                    elif -7 <= days_diff <= 0:
+                        expected_color = 'orange'
+                    else:
+                        expected_color = 'red'
+                except:
+                    expected_color = 'green'
+            elif deadline_str:
+                # Fallback to real date if simulated date not available
+                try:
+                    from datetime import datetime, timezone
+                    deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                    if deadline.tzinfo:
+                        now = datetime.now(timezone.utc)
+                    else:
+                        now = datetime.now()
+                        deadline = deadline.replace(tzinfo=None)
+                    days_diff = (deadline - now).days
+                    
+                    if days_diff > 0:
+                        expected_color = 'green'
+                    elif -7 <= days_diff <= 0:
+                        expected_color = 'orange'
+                    else:
+                        expected_color = 'red'
+                except:
+                    expected_color = 'green'
+            else:
+                expected_color = 'green'
+        
+        # Determine correct account based on expected color
+        correct_account = 'archive' if expected_color == 'red' else 'primary'
         
         # Check if relay should have been triggered (storage > 14 GB)
         if storage_used >= 14.0:
             should_have_relayed = True
         
         # Color score: +0.1 for correct, -0.05 for wrong
-        if color == correct_color:
+        if color == expected_color:
             color_score += 0.1
             correct_colors += 1
         else:
@@ -399,6 +402,43 @@ Return ONLY the score as a number between 0.0 and 1.0."""},
     except Exception as e:
         print(f"Task 4 grader failed: {e}")
         return 0.5
+
+
+def task5_grader(correct_ranking: List[str], agent_ranking: List[str]) -> float:
+    """
+    Task 5: Priority Ranking
+    Agent ranks emails by importance (1st = most important)
+    Score based on position accuracy
+    """
+    if not agent_ranking or not correct_ranking:
+        return 0.0
+    
+    n = min(len(correct_ranking), len(agent_ranking))
+    if n == 0:
+        return 0.0
+    
+    # Create position maps
+    correct_positions = {email: idx for idx, email in enumerate(correct_ranking[:n])}
+    
+    score = 0.0
+    for position, email in enumerate(agent_ranking[:n]):
+        if email in correct_positions:
+            correct_pos = correct_positions[email]
+            diff = abs(position - correct_pos)
+            
+            # Weighted scoring based on position difference
+            if diff == 0:
+                score += 0.1  # Perfect position
+            elif diff == 1:
+                score += 0.07  # Off by 1
+            elif diff == 2:
+                score += 0.04  # Off by 2
+            elif diff <= 4:
+                score += 0.02  # Off by 3-4
+            else:
+                score += 0.01  # Far off but still in list
+    
+    return round(min(score, 1.0), 2)
 
 
 def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, Any]:
@@ -512,6 +552,27 @@ def evaluate_task4(email_subject: str, email_body: str, agent_reply: str) -> Dic
     }
 
 
+def evaluate_task5(correct_ranking: List[str], agent_ranking: List[str]) -> Dict[str, Any]:
+    """
+    Evaluate Task 5 and return detailed results
+    
+    Args:
+        correct_ranking: Ground truth ranking (list of email IDs)
+        agent_ranking: Agent's predicted ranking (list of email IDs)
+    
+    Returns:
+        Dictionary with score and metadata
+    """
+    score = task5_grader(correct_ranking, agent_ranking)
+    
+    return {
+        'score': score,
+        'correct_ranking': correct_ranking,
+        'agent_ranking': agent_ranking,
+        'ranking_accuracy': f"{score * 100:.1f}%"
+    }
+
+
 def color_score_from_transitions(transitions: List[Dict]) -> float:
     """Calculate color score from transitions for display purposes"""
     if not transitions:
@@ -563,18 +624,18 @@ if __name__ == "__main__":
     old = (datetime.now() - timedelta(days=10)).isoformat()
     
     transitions_correct = [
-        {"color": "green", "deadline": future, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat()},
-        {"color": "orange", "deadline": recent, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat()},
-        {"color": "red", "deadline": old, "group": "jobs_q1", "account": "archive", "simulated_date": datetime.now().isoformat()}
+        {"color": "green", "deadline": future, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat(), "correct_color_for_step": "green"},
+        {"color": "orange", "deadline": recent, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat(), "correct_color_for_step": "orange"},
+        {"color": "red", "deadline": old, "group": "jobs_q1", "account": "archive", "simulated_date": datetime.now().isoformat(), "correct_color_for_step": "red"}
     ]
     correct_groups = ["internships_q1", "jobs_q1", "finance_q1"]
     print(f"Correct colors (all +0.1 each): {task3_grader(transitions_correct, correct_groups)}")
     
     # Test with incorrect colors (should get negative)
     transitions_wrong = [
-        {"color": "red", "deadline": future, "group": "internships_q1", "account": "archive", "simulated_date": datetime.now().isoformat()},
-        {"color": "green", "deadline": old, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat()},
-        {"color": "orange", "deadline": old, "group": "jobs_q1", "account": "primary", "simulated_date": datetime.now().isoformat()}
+        {"color": "red", "deadline": future, "group": "internships_q1", "account": "archive", "simulated_date": datetime.now().isoformat(), "correct_color_for_step": "green"},
+        {"color": "green", "deadline": old, "group": "internships_q1", "account": "primary", "simulated_date": datetime.now().isoformat(), "correct_color_for_step": "red"},
+        {"color": "orange", "deadline": old, "group": "jobs_q1", "account": "primary", "simulated_date": datetime.now().isoformat(), "correct_color_for_step": "red"}
     ]
     print(f"Wrong colors (should be negative): {task3_grader(transitions_wrong, correct_groups)}")
     
@@ -586,3 +647,13 @@ if __name__ == "__main__":
     
     print(f"Good reply score: {task4_grader(test_email_subject, test_email_body, good_reply)}")
     print(f"Poor reply score: {task4_grader(test_email_subject, test_email_body, poor_reply)}")
+    
+    print("\nTesting Task 5 Grader...")
+    correct_ranking = ["email_1", "email_2", "email_3", "email_4", "email_5"]
+    perfect_ranking = ["email_1", "email_2", "email_3", "email_4", "email_5"]
+    good_ranking = ["email_1", "email_3", "email_2", "email_4", "email_5"]
+    poor_ranking = ["email_5", "email_4", "email_3", "email_2", "email_1"]
+    
+    print(f"Perfect ranking score: {task5_grader(correct_ranking, perfect_ranking)}")
+    print(f"Good ranking score: {task5_grader(correct_ranking, good_ranking)}")
+    print(f"Poor ranking score: {task5_grader(correct_ranking, poor_ranking)}")

@@ -1,0 +1,11 @@
+{
+  "id": "task3_future_003",
+  "subject": "Fee Payment Deadline Extended",
+  "body": "Last date to pay semester fee: 2026-04-16",
+  "attachment_texts": {},
+  "received_date": "2026-04-05",
+  "deadline": "2026-04-16",
+  "correct_group": "finance_q1",
+  "task": 3,
+  "expected_color": "green"
+}
