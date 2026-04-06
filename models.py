@@ -15,9 +15,10 @@ class FellowBuffaloAction(BaseModel):
     color: Optional[str] = None  # green, orange, red
     deadline: Optional[str] = None  # ISO format datetime or null
     confidence: Optional[int] = None  # 0-100 confidence score
-    account: Optional[str] = None  # NEW: "primary" or "archive"
+    account: Optional[str] = None  # "primary" or "archive"
     summary: Optional[str] = None  # AI-generated summary
     tag_cloud: Optional[str] = None  # Pipe-separated keywords
+    reply: Optional[str] = None  # NEW: Task 4 - Email reply
     lifecycle_decisions: Optional[List[Dict[str, Any]]] = None  # For Task 3
 
 

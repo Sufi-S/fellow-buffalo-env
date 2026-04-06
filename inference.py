@@ -243,7 +243,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             print(f"Step error: {e}")
             return 0.0
     
-    else:  # task_id == 3
+    elif task_id == 3:
         # Task 3: Multiple emails
         print(f"  📧 Starting Task 3 (lifecycle management with temporal reasoning and storage monitoring)")
         
@@ -357,11 +357,58 @@ Return JSON only:
                 print(f"\n  ✅ Task completed after {step_count} steps")
                 break
     
+    elif task_id == 4:
+        # Task 4: Reply Generation
+        print(f"  📧 Processing email for reply: {observation.get('email_subject', '')[:60]}...")
+        
+        prompt = f"""
+        Write a professional reply to this email:
+        
+        Subject: {observation.get('email_subject', '')}
+        Body: {observation.get('email_body', '')[:800]}
+        
+        Return JSON only with: reply
+        Example: {{"reply": "Dear Sir/Madam,\\n\\nThank you for your email. I will...\\n\\nBest regards,\\n[Your Name]"}}
+        """
+        
+        ai_response = call_ai(prompt, max_tokens=300)
+        
+        try:
+            json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+            else:
+                data = {}
+        except Exception as e:
+            print(f"JSON parse error: {e}")
+            data = {}
+        
+        action = FellowBuffaloAction(
+            task_id=task_id,
+            reply=data.get('reply', '')
+        )
+        print(f"  🤖 AI reply: {action.reply[:100]}..." if action.reply else "  🤖 AI reply: None")
+        
+        try:
+            step_response = httpx.post(
+                f"{env_url}/step", 
+                json={"action": action.model_dump()}, 
+                timeout=30
+            )
+            if step_response.status_code != 200:
+                print(f"Step failed: {step_response.status_code}")
+                return 0.0
+            result = step_response.json()
+            total_reward = result.get('reward', 0.0)
+        except Exception as e:
+            print(f"Step error: {e}")
+            return 0.0
+    
     return total_reward
 
 
 def main():
-    """Run all 3 tasks and print scores"""
+    """Run all 4 tasks and print scores"""
     print("Fellow Buffalo Baseline Agent")
     print("=" * 40)
     
@@ -376,14 +423,14 @@ def main():
     
     scores = {}
     
-    for task_id in [1, 2, 3]:
+    for task_id in [1, 2, 3, 4]:
         print(f"\n{'='*40}")
         print(f"Running Task {task_id}...")
         print('='*40)
         score = run_single_task(task_id)
         scores[f"task_{task_id}"] = round(score, 4)
         
-        # UPDATED: Show score with denominator based on task
+        # Show score with denominator based on task
         if task_id == 1:
             print(f"\n📊 Task {task_id} final score: {score:.4f} / 5.0")
         else:

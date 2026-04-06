@@ -41,7 +41,7 @@ from openai import OpenAI
 
 from environment import FellowBuffaloEnv
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
-from tasks import task1_grader, task2_grader, task3_grader
+from tasks import task1_grader, task2_grader, task3_grader, task4_grader
 
 # Create FastAPI app
 app = FastAPI(
@@ -69,6 +69,7 @@ class BaselineResponse(BaseModel):
     task_1: float
     task_2: float
     task_3: float
+    task_4: float
     status: str
 
 
@@ -278,6 +279,49 @@ def run_task3_baseline(client, model) -> float:
         return 0.0
 
 
+def run_task4_baseline(client, model) -> float:
+    """Run Task 4 baseline - Reply Generation"""
+    try:
+        test_env = FellowBuffaloEnv()
+        obs = test_env.reset(task_id=4)
+        
+        prompt = f"""
+        Write a professional reply to this email:
+        
+        Subject: {obs.email_subject}
+        Body: {obs.email_body[:800]}
+        
+        Return JSON only with: reply
+        Example: {{"reply": "Dear Sir/Madam,\\n\\nThank you for your email. I will...\\n\\nBest regards,\\n[Your Name]"}}
+        """
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.1
+        )
+        
+        content = response.choices[0].message.content
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+        else:
+            data = {}
+        
+        action = FellowBuffaloAction(
+            task_id=4,
+            reply=data.get('reply', '')
+        )
+        
+        _, reward, _ = test_env.step(action)
+        return round(reward, 4)
+        
+    except Exception as e:
+        print(f"Task 4 baseline error: {e}")
+        return 0.0
+
+
 @app.get("/")
 async def root():
     return {
@@ -363,6 +407,15 @@ async def tasks() -> Dict[str, Any]:
                 "action_schema": {
                     "lifecycle_decisions": "list of transitions"
                 }
+            },
+            {
+                "id": 4,
+                "name": "reply-generation",
+                "difficulty": "medium",
+                "description": "Generate a professional reply to an email",
+                "action_schema": {
+                    "reply": "string (AI-generated email reply)"
+                }
             }
         ]
     }
@@ -371,7 +424,7 @@ async def tasks() -> Dict[str, Any]:
 @app.post("/baseline")
 async def baseline() -> BaselineResponse:
     """Run baseline inference and return scores - FIXED: Direct execution"""
-    scores = {"task_1": 0.0, "task_2": 0.0, "task_3": 0.0}
+    scores = {"task_1": 0.0, "task_2": 0.0, "task_3": 0.0, "task_4": 0.0}
     
     client, model = get_ai_client()
     
@@ -380,6 +433,7 @@ async def baseline() -> BaselineResponse:
             task_1=0.0,
             task_2=0.0,
             task_3=0.0,
+            task_4=0.0,
             status="no_api_key"
         )
     
@@ -387,11 +441,13 @@ async def baseline() -> BaselineResponse:
     scores["task_1"] = run_task1_baseline(client, model)
     scores["task_2"] = run_task2_baseline(client, model)
     scores["task_3"] = run_task3_baseline(client, model)
+    scores["task_4"] = run_task4_baseline(client, model)
     
     return BaselineResponse(
         task_1=scores["task_1"],
         task_2=scores["task_2"],
         task_3=scores["task_3"],
+        task_4=scores["task_4"],
         status="completed"
     )
 
@@ -466,6 +522,7 @@ async def web_interface():
                 <option value="1">Task 1 — Email Classification (Easy)</option>
                 <option value="2">Task 2 — Metadata Generation (Medium)</option>
                 <option value="3">Task 3 — Lifecycle Manager (Hard)</option>
+                <option value="4">Task 4 — Reply Generation (Medium)</option>
             </select>
             <button onclick="reset()">Reset</button>
         </div>

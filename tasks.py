@@ -361,6 +361,46 @@ def task3_grader(transitions: List[Dict], correct_groups: List[str]) -> float:
     return round(max(-0.5, min(1.0, final_score)), 2)  # Range: -0.5 to 1.0
 
 
+def task4_grader(email_subject: str, email_body: str, agent_reply: str) -> float:
+    """
+    Task 4: Reply Generation
+    Agent must write a professional reply to an email
+    Score: AI grades reply quality, relevance, tone, completeness
+    """
+    client = get_client()
+    
+    if not client:
+        # Fallback: length-based scoring
+        if len(agent_reply) > 100:
+            return 0.8
+        elif len(agent_reply) > 50:
+            return 0.5
+        else:
+            return 0.2
+    
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": """You are an expert email evaluator. Score this email reply from 0.0 to 1.0 based on:
+- Relevance: Does it address the original email's main points? (0.3)
+- Professionalism: Is the tone appropriate? (0.2)
+- Completeness: Does it answer all questions/requests? (0.3)
+- Clarity: Is it well-written and clear? (0.2)
+
+Return ONLY the score as a number between 0.0 and 1.0."""},
+                {"role": "user", "content": f"Original Email Subject: {email_subject}\nOriginal Email Body: {email_body[:800]}\n\nAgent's Reply: {agent_reply}\n\nScore (0.0 to 1.0):"}
+            ],
+            max_tokens=10,
+            temperature=0
+        )
+        score = float(response.choices[0].message.content.strip())
+        return round(max(0.0, min(1.0, score)), 2)
+    except Exception as e:
+        print(f"Task 4 grader failed: {e}")
+        return 0.5
+
+
 def evaluate_task1(correct: Dict[str, Any], agent: Dict[str, Any]) -> Dict[str, Any]:
     """
     Evaluate Task 1 and return detailed results
@@ -451,6 +491,27 @@ def evaluate_task3(transitions: List[Dict], correct_groups: List[str]) -> Dict[s
     }
 
 
+def evaluate_task4(email_subject: str, email_body: str, agent_reply: str) -> Dict[str, Any]:
+    """
+    Evaluate Task 4 and return detailed results
+    
+    Args:
+        email_subject: Original email subject
+        email_body: Original email content
+        agent_reply: Agent's generated reply
+    
+    Returns:
+        Dictionary with score and metadata
+    """
+    score = task4_grader(email_subject, email_body, agent_reply)
+    
+    return {
+        'score': score,
+        'reply_length': len(agent_reply),
+        'reply_preview': agent_reply[:100] if agent_reply else ''
+    }
+
+
 def color_score_from_transitions(transitions: List[Dict]) -> float:
     """Calculate color score from transitions for display purposes"""
     if not transitions:
@@ -516,3 +577,12 @@ if __name__ == "__main__":
         {"color": "orange", "deadline": old, "group": "jobs_q1", "account": "primary", "simulated_date": datetime.now().isoformat()}
     ]
     print(f"Wrong colors (should be negative): {task3_grader(transitions_wrong, correct_groups)}")
+    
+    print("\nTesting Task 4 Grader...")
+    test_email_subject = "Internship Application Question"
+    test_email_body = "Dear Team, I applied for the summer internship last week. When can I expect to hear back? Thank you."
+    good_reply = "Thank you for your application. Our team is reviewing submissions and you can expect to hear back within 2-3 weeks. We appreciate your patience."
+    poor_reply = "ok thanks"
+    
+    print(f"Good reply score: {task4_grader(test_email_subject, test_email_body, good_reply)}")
+    print(f"Poor reply score: {task4_grader(test_email_subject, test_email_body, poor_reply)}")

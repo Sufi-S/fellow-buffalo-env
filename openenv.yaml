@@ -1,12 +1,13 @@
 name: fellow-buffalo
 version: '1.0.0'
-description: 'Email triage environment - train AI to classify, summarize, and manage email lifecycle'
+description: 'Email triage environment - train AI to classify, summarize, generate replies, and manage email lifecycle'
 author: Azam Sufiyan
 tags:
   - email
   - nlp
   - classification
   - real-world
+  - llm
 tasks:
   - id: task1
     name: email-intake
@@ -19,7 +20,19 @@ tasks:
   - id: task3
     name: lifecycle-manager
     difficulty: hard
-    description: 'Manage color transitions (Green→Orange→Red) and group emails for archiving'
+    description: 'Manage color transitions (Green→Orange→Red) and group emails for archiving with storage monitoring'
+  - id: task4
+    name: reply-generation
+    difficulty: medium
+    description: 'Generate professional replies to incoming emails with appropriate tone and completeness'
 server:
   port: 7860
   health_endpoint: /health
+  endpoints:
+    - /reset
+    - /step
+    - /state
+    - /tasks
+    - /baseline
+    - /grader
+    - /web

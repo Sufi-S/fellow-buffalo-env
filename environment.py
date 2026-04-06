@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
-from tasks import task1_grader, task2_grader, task3_grader
+from tasks import task1_grader, task2_grader, task3_grader, task4_grader
 
 
 class FellowBuffaloEnv:
@@ -42,7 +42,7 @@ class FellowBuffaloEnv:
         
     def _load_emails(self) -> Dict[int, list]:
         """Load test emails from JSON files"""
-        emails = {1: [], 2: [], 3: []}
+        emails = {1: [], 2: [], 3: [], 4: []}
         
         if not os.path.exists(self.test_emails_path):
             return self._create_default_emails()
@@ -59,7 +59,7 @@ class FellowBuffaloEnv:
                     continue
         
         # If no emails found, create defaults
-        for task_id in [1, 2, 3]:
+        for task_id in [1, 2, 3, 4]:
             if not emails[task_id]:
                 emails[task_id] = self._create_default_emails()[task_id]
         
@@ -163,6 +163,26 @@ class FellowBuffaloEnv:
                     "deadline": None,
                     "correct_group": "news_q1"
                 }
+            ],
+            4: [
+                {
+                    "id": "default_012",
+                    "subject": "Internship Application Question",
+                    "body": "Dear Team, I applied for the summer internship last week. When can I expect to hear back? Thank you.",
+                    "attachment_texts": {}
+                },
+                {
+                    "id": "default_013",
+                    "subject": "Meeting Reschedule Request",
+                    "body": "Hi, I need to reschedule our meeting for tomorrow. Would Thursday work instead? Let me know.",
+                    "attachment_texts": {}
+                },
+                {
+                    "id": "default_014",
+                    "subject": "Invoice Inquiry",
+                    "body": "I haven't received the invoice for last month's services. Can you please send it again?",
+                    "attachment_texts": {}
+                }
             ]
         }
     
@@ -193,7 +213,7 @@ class FellowBuffaloEnv:
                 self.task1_emails_queue = []
                 self.current_email = self._create_default_emails()[task_id][0].copy()
         else:
-            # For Task 2 and 3: single email
+            # For Task 2, 3, and 4: single email
             emails_for_task = self.emails.get(task_id, [])
             if emails_for_task:
                 self.current_email = random.choice(emails_for_task).copy()
@@ -374,6 +394,15 @@ class FellowBuffaloEnv:
                     )
                     return self.current_observation, storage_reward, False
         
+        elif self.current_task == 4:
+            # Task 4: Reply Generation
+            reward = task4_grader(
+                self.current_email.get('subject', ''),
+                self.current_email.get('body', ''),
+                action.reply or ''
+            )
+            self.done = True
+        
         # Update observation for single-step tasks
         self.current_observation = FellowBuffaloObservation(
             task_id=self.current_task,
@@ -390,7 +419,7 @@ class FellowBuffaloEnv:
     
     def state(self) -> FellowBuffaloState:
         """Return current episode state"""
-        task_names = {1: "email-intake", 2: "metadata-generation", 3: "lifecycle-manager"}
+        task_names = {1: "email-intake", 2: "metadata-generation", 3: "lifecycle-manager", 4: "reply-generation"}
         return FellowBuffaloState(
             task_id=self.current_task or 1,
             task_name=task_names.get(self.current_task, "unknown"),
