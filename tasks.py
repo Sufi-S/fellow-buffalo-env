@@ -50,28 +50,73 @@ def get_client():
 
 def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
     """
-    Task 1: Email Classification with Negative Scores
-    Correct = positive, Wrong = negative (teaches agent what NOT to do)
+    Task 1: Email Classification with Multi-Trajectory Support
+    - Multiple valid answers accepted based on context
+    - Correct = positive, Wrong = negative
     """
     score = 0.0
     confidence = agent.get('confidence', 50)
     confidence = max(0, min(100, confidence or 50))
     
-    # Tab: correct = +0.33, wrong = -0.15
-    if agent.get('tab') == correct.get('tab'):
+    # Get deadline for multi-trajectory logic
+    deadline_str = correct.get('deadline')
+    days_until_deadline = None
+    if deadline_str:
+        try:
+            deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+            days_until_deadline = (deadline - datetime.now()).days
+        except:
+            pass
+    
+    # TAB scoring
+    agent_tab = agent.get('tab')
+    correct_tab = correct.get('tab')
+    
+    # Multi-trajectory: Accept related tabs as partially correct
+    tab_aliases = {
+        'Internships': ['Internship', 'Intern', 'Trainee', 'Fellowship'],
+        'Jobs': ['Job', 'Hiring', 'Position', 'Career', 'Full-time'],
+        'Finance': ['Payment', 'Invoice', 'Fee', 'Bill', 'Receipt', 'Salary'],
+        'Events': ['Event', 'Hackathon', 'Conference', 'Webinar', 'Meetup'],
+        'Sports': ['Sport', 'Match', 'Game', 'Tournament', 'Cricket', 'IPL'],
+        'News': ['Newsletter', 'Digest', 'Update', 'Announcement'],
+        'General': ['General', 'Info', 'Notice']
+    }
+    
+    if agent_tab == correct_tab:
+        # Exact match: full points + confidence bonus
         bonus = (confidence - 50) / 500
         score += 0.33 + max(0.0, round(bonus, 3))
+    elif correct_tab and agent_tab in tab_aliases.get(correct_tab, []):
+        # Partial match (alias): half points
+        score += 0.16
     else:
-        penalty = confidence / 500  # Max -0.20 at confidence 100
+        # Wrong: penalty
+        penalty = confidence / 500
         score -= 0.15 + round(penalty, 3)
     
-    # Color: correct = +0.33, wrong = -0.15
-    if agent.get('color') == correct.get('color'):
+    # COLOR scoring with multi-trajectory
+    agent_color = agent.get('color')
+    correct_color = correct.get('color')
+    
+    # Multi-trajectory: For emails close to deadline, both green and orange are valid
+    is_close_to_deadline = days_until_deadline is not None and 0 <= days_until_deadline <= 3
+    
+    if agent_color == correct_color:
         score += 0.33
+    elif is_close_to_deadline and agent_color in ['green', 'orange'] and correct_color in ['green', 'orange']:
+        # Multi-trajectory: Both green and orange are valid within 3 days of deadline
+        score += 0.33  # Full points for either valid color
+    elif correct_color == 'green' and agent_color == 'orange' and days_until_deadline is not None and days_until_deadline <= 5:
+        # Partial credit: orange is acceptable for emails with deadline in 0-5 days
+        score += 0.20
+    elif correct_color == 'orange' and agent_color == 'red' and days_until_deadline is not None and days_until_deadline <= -3:
+        # Partial credit: red is acceptable for emails 3-7 days past deadline
+        score += 0.20
     else:
         score -= 0.15
     
-    # Deadline (0.34)
+    # DEADLINE scoring (existing logic)
     agent_deadline = agent.get('deadline')
     correct_deadline = correct.get('deadline')
     
@@ -91,17 +136,17 @@ def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
             elif diff_days <= 7:
                 score += 0.05
             else:
-                score -= 0.10  # Far off deadline = penalty
+                score -= 0.10
         except:
             score -= 0.05
     elif correct_deadline is None and agent_deadline is None:
         score += 0.34
     elif correct_deadline is not None and agent_deadline is None:
-        score -= 0.10  # Missed deadline = penalty
+        score -= 0.10
     elif correct_deadline is None and agent_deadline is not None:
-        score -= 0.05  # False deadline = small penalty
+        score -= 0.05
     
-    return round(max(-0.5, min(1.0, score)), 2)  # Range: -0.5 to 1.0
+    return round(max(-0.5, min(1.0, score)), 2)
 
 
 def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, attachment_texts: dict = None) -> float:
@@ -425,6 +470,10 @@ if __name__ == "__main__":
     correct = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00"}
     agent = {"tab": "Jobs", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 100}
     print(f"Perfect score with high confidence: {task1_grader(correct, agent)}")
+    
+    # Test alias (Internship vs Internships)
+    agent_alias = {"tab": "Internship", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 80}
+    print(f"Alias tab (Internship vs Internships): {task1_grader(correct, agent_alias)}")
     
     # Test wrong tab
     agent_wrong_tab = {"tab": "Finance", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 100}
