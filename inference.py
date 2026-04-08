@@ -8,8 +8,13 @@ import os
 import sys
 import json
 import re
+import contextlib
+import io
 from typing import Optional
 import httpx
+
+# Force stdout to be line-buffered and clean
+sys.stdout.reconfigure(line_buffering=True)
 
 # Load .env file manually (handles Windows BOM) - looks in current or parent dir
 def load_env_file():
@@ -41,12 +46,12 @@ from models import FellowBuffaloAction
 
 
 def log_debug(msg: str):
-    """Print debug messages to stderr (not stdout)"""
-    print(msg, file=sys.stderr, flush=True)
+    """DISABLED: No debug prints allowed"""
+    pass  # Completely disabled for hackathon
 
 
 def get_client():
-    """Get OpenAI client (works for Groq and OpenAI automatically)"""
+    """Get OpenAI client (works for Groq and OpenAI automatically) - NO PRINTS"""
     groq_key = os.getenv('GROQ_API_KEY')
     openai_key = os.getenv('OPENAI_API_KEY')
     hf_key = os.getenv('HF_TOKEN')
@@ -56,7 +61,6 @@ def get_client():
     api_key = groq_key or openai_key or hf_key
     
     if not api_key:
-        log_debug("ERROR: No API key found")
         return None, None
     
     api_base_url = os.getenv('API_BASE_URL')
@@ -74,30 +78,32 @@ def get_client():
         client = OpenAI(api_key=api_key)
         model_name = os.getenv('MODEL_NAME', 'gpt-4o-mini')
     
-    log_debug(f"Using {'Groq' if using_groq else 'OpenAI'} API with model: {model_name}")
+    # NO PRINT STATEMENT HERE - removed completely
     return client, model_name
 
 
 def call_ai(prompt: str, max_tokens: int = 500) -> str:
-    """Call AI with fallback"""
+    """Call AI with suppressed stdout"""
     client, model = get_client()
     
     if client is None:
         return "{}"
     
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are an email management AI. Return JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.1,
-            max_tokens=max_tokens
-        )
+        # 🔥 suppress ANY unwanted prints from OpenAI/Groq library
+        with contextlib.redirect_stdout(io.StringIO()):
+            with contextlib.redirect_stderr(io.StringIO()):
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are an email management AI. Return JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.1,
+                    max_tokens=max_tokens
+                )
         return response.choices[0].message.content or ""
-    except Exception as e:
-        log_debug(f"AI call failed: {e}")
+    except Exception:
         return "{}"
 
 
@@ -113,12 +119,10 @@ def run_single_task(task_id: int) -> float:
     try:
         reset_response = httpx.post(f"{env_url}/reset", json={"task_id": task_id}, timeout=30)
         if reset_response.status_code != 200:
-            log_debug(f"Failed to reset task {task_id}")
             print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
             return 0.0
         observation = reset_response.json()
-    except Exception as e:
-        log_debug(f"Connection error: {e}")
+    except Exception:
         print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
         return 0.0
     
@@ -153,8 +157,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                     data = json.loads(json_match.group())
                 else:
                     data = {}
-            except Exception as e:
-                log_debug(f"JSON parse error: {e}")
+            except Exception:
                 data = {}
             
             action = FellowBuffaloAction(
@@ -175,7 +178,6 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                     timeout=30
                 )
                 if step_response.status_code != 200:
-                    log_debug(f"Step failed: {step_response.status_code}")
                     break
                 result = step_response.json()
                 reward = result.get('reward', 0.0)
@@ -184,8 +186,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 
                 print(f"[STEP] step={step_count} reward={reward:.4f}", flush=True)
                 
-            except Exception as e:
-                log_debug(f"Step error: {e}")
+            except Exception:
                 break
             
             if result.get('done', False):
@@ -213,8 +214,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 data = json.loads(json_match.group())
             else:
                 data = {}
-        except Exception as e:
-            log_debug(f"JSON parse error: {e}")
+        except Exception:
             data = {}
         
         action = FellowBuffaloAction(
@@ -234,7 +234,6 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 timeout=30
             )
             if step_response.status_code != 200:
-                log_debug(f"Step failed: {step_response.status_code}")
                 print(f"[STEP] step=1 reward=0.0", flush=True)
                 print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
                 return 0.0
@@ -244,8 +243,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             
             print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
             
-        except Exception as e:
-            log_debug(f"Step error: {e}")
+        except Exception:
             print(f"[STEP] step=1 reward=0.0", flush=True)
             print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
             return 0.0
@@ -296,8 +294,7 @@ Return JSON only:
                     data = json.loads(json_match.group())
                 else:
                     data = {}
-            except Exception as e:
-                log_debug(f"JSON parse error: {e}")
+            except Exception:
                 data = {}
             
             action = FellowBuffaloAction(
@@ -325,7 +322,6 @@ Return JSON only:
                     timeout=30
                 )
                 if step_response.status_code != 200:
-                    log_debug(f"Step failed: {step_response.status_code}")
                     break
                 result = step_response.json()
                 reward = result.get('reward', 0.0)
@@ -334,8 +330,7 @@ Return JSON only:
                 
                 print(f"[STEP] step={step_count} reward={reward:.4f}", flush=True)
                 
-            except Exception as e:
-                log_debug(f"Step error: {e}")
+            except Exception:
                 break
             
             if result.get('done', False):
@@ -361,8 +356,7 @@ Return JSON only:
                 data = json.loads(json_match.group())
             else:
                 data = {}
-        except Exception as e:
-            log_debug(f"JSON parse error: {e}")
+        except Exception:
             data = {}
         
         action = FellowBuffaloAction(
@@ -377,7 +371,6 @@ Return JSON only:
                 timeout=30
             )
             if step_response.status_code != 200:
-                log_debug(f"Step failed: {step_response.status_code}")
                 print(f"[STEP] step=1 reward=0.0", flush=True)
                 print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
                 return 0.0
@@ -387,8 +380,7 @@ Return JSON only:
             
             print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
             
-        except Exception as e:
-            log_debug(f"Step error: {e}")
+        except Exception:
             print(f"[STEP] step=1 reward=0.0", flush=True)
             print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
             return 0.0
@@ -425,31 +417,33 @@ Example: {{"ranking": [3, 1, 5, 2, 4, 6, 7, 8, 9, 10]}}
                 ranking_numbers = data.get('ranking', list(range(1, 11)))
             else:
                 ranking_numbers = list(range(1, 11))
-        except Exception as e:
-            log_debug(f"JSON parse error: {e}")
+        except Exception:
             ranking_numbers = list(range(1, 11))
         
         email_ids = observation.get('metadata', {}).get('emails_to_rank', [])
         if not email_ids:
             email_ids = [f"email_{i}" for i in range(10)]
         
-        ranking_ids = [email_ids[num-1] for num in ranking_numbers]
+        ranking_ids = [email_ids[num-1] for num in ranking_numbers if 1 <= num <= len(email_ids)]
         
         action = FellowBuffaloAction(
             task_id=task_id,
             email_ranking=ranking_ids
         )
         
-        step_response = httpx.post(
-            f"{env_url}/step", 
-            json={"action": action.model_dump()}, 
-            timeout=30
-        )
-        result = step_response.json()
-        total_reward = result.get('reward', 0.0)
-        step_count = 1
-        
-        print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
+        try:
+            step_response = httpx.post(
+                f"{env_url}/step", 
+                json={"action": action.model_dump()}, 
+                timeout=30
+            )
+            result = step_response.json()
+            total_reward = result.get('reward', 0.0)
+            step_count = 1
+            
+            print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
+        except Exception:
+            print(f"[STEP] step=1 reward=0.0", flush=True)
     
     print(f"[END] task={task_name} score={total_reward:.4f} steps={step_count}", flush=True)
     
