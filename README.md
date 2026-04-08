@@ -7,124 +7,172 @@ colorTo: green
 sdk: docker
 pinned: false
 tags:
-  - openenv
-  - email
-  - nlp
-  - real-world
+
+* openenv
+* email
+* nlp
+* real-world
 
 ---
 
-#  Fellow Buffalo — OpenEnv Email Triage Environment
+# 📧 Fellow Buffalo — AI Email Operating System
 
-An AI training environment where agents learn to manage emails like a real-world email operating system.
-
----
-
-##  Real-World Motivation
-
-Email triage is a daily task for professionals.
-Fellow Buffalo trains AI agents to automate:
-
-* Email classification
-* Information extraction
-* Lifecycle management
+An intelligent multi-task AI environment where agents learn to **triage, understand, and manage emails like a real-world email system**.
 
 ---
 
-##  Action Space
+## 🚀 Overview
 
-| Field                 | Type   | Description                                                     |
-| --------------------- | ------ | --------------------------------------------------------------- |
-| `task_id`             | int    | Task identifier (1, 2, or 3)                                    |
-| `tab`                 | string | Jobs / Internships / News / Sports / Events / Finance / General |
-| `color`               | string | Priority: green / orange / red                                  |
-| `deadline`            | string | ISO datetime or `null`                                          |
-| `summary`             | string | AI-generated email summary                                      |
-| `tag_cloud`           | string | Pipe-separated keywords                                         |
-| `lifecycle_decisions` | list   | Decisions for Task 3 (color + grouping)                         |
+Fellow Buffalo simulates a real-world email inbox where an AI agent must:
 
----
+* Classify emails
+* Extract structured information
+* Manage lifecycle decisions
+* Generate replies
+* Rank priorities
 
-##  Observation Space
-
-| Field              | Type   | Description                 |
-| ------------------ | ------ | --------------------------- |
-| `email_subject`    | string | Email subject line          |
-| `email_body`       | string | Email content               |
-| `attachment_texts` | dict   | Parsed attachment content   |
-| `deadline`         | string | Extracted deadline (if any) |
-| `done`             | bool   | Episode completion flag     |
+Built for **OpenEnv evaluation**, this environment enables testing **LLM-based decision agents** under realistic conditions.
 
 ---
 
-##  Tasks
+## 🧠 Tasks
 
-| Task   | Difficulty | Description                           | Max Score |
-| ------ | ---------- | ------------------------------------- | --------- |
-| Task 1 | Easy       | Classify email (tab, color, deadline) | 1.0       |
-| Task 2 | Medium     | Generate summary and tag cloud        | 1.0       |
-| Task 3 | Hard       | Manage lifecycle across 10 emails     | 1.0       |
+| Task | Name                | Description                            | Max Score |
+| ---- | ------------------- | -------------------------------------- | --------- |
+| 1    | Email Intake        | Classify emails (tab, color, deadline) | ~5.0      |
+| 2    | Metadata Generation | Generate summary & tag cloud           | 1.0       |
+| 3    | Lifecycle Manager   | Multi-email lifecycle decisions        | ~1.0      |
+| 4    | Reply Generation    | Generate professional replies          | 1.0       |
+| 5    | Priority Ranking    | Rank emails by importance              | 1.0       |
 
 ---
 
-##  Reward Design
+## 📊 Reward Design
 
-### Task 1
+### Task 1 (Multi-step)
 
 * +0.33 → Correct tab
 * +0.33 → Correct color
 * +0.34 → Correct deadline
+
+👉 Total score = **sum over multiple emails (~5 max)**
+
+---
 
 ### Task 2
 
 * 0.5 → Summary quality
 * 0.5 → Tag cloud quality
 
+---
+
 ### Task 3
 
-* +0.1 → Per correct lifecycle decision (max 0.8)
-* +0.2 → Correct grouping
+* Per-step lifecycle reward
+* Storage-aware decisions
+* Temporal reasoning
 
 ---
 
-##  Baseline Performance
+### Task 4
 
-| Task   | Score |
-| ------ | ----- |
-| Task 1 | 0.67  |
-| Task 2 | 0.84  |
-| Task 3 | 0.80  |
+* Reply quality
+* Professional tone
 
 ---
 
-##  API Endpoints
+### Task 5
 
-| Endpoint    | Method | Description                |
-| ----------- | ------ | -------------------------- |
-| `/health`   | GET    | Health check               |
-| `/reset`    | POST   | Start new episode          |
-| `/step`     | POST   | Take action and get reward |
-| `/state`    | GET    | Current episode state      |
-| `/tasks`    | GET    | List all tasks             |
-| `/baseline` | POST   | Run baseline agent         |
-| `/grader`   | GET    | Get last episode score     |
+* Ranking accuracy
 
 ---
 
-## Quick Start
+## ⚙️ Action Space
 
-### Run locally
+| Field                 | Type   | Description                                                     |
+| --------------------- | ------ | --------------------------------------------------------------- |
+| `task_id`             | int    | Task identifier (1–5)                                           |
+| `tab`                 | string | Jobs / Internships / News / Sports / Events / Finance / General |
+| `color`               | string | green / orange / red                                            |
+| `deadline`            | string | ISO datetime or null                                            |
+| `summary`             | string | Email summary                                                   |
+| `tag_cloud`           | string | Keywords                                                        |
+| `lifecycle_decisions` | list   | Task 3 decisions                                                |
+| `reply`               | string | Task 4 reply                                                    |
+| `email_ranking`       | list   | Task 5 ranking                                                  |
+
+---
+
+## 📥 Observation Space
+
+| Field              | Type   | Description        |
+| ------------------ | ------ | ------------------ |
+| `email_subject`    | string | Subject            |
+| `email_body`       | string | Content            |
+| `attachment_texts` | dict   | Attachments        |
+| `deadline`         | string | Extracted deadline |
+| `done`             | bool   | Episode finished   |
+
+---
+
+## 🧪 Evaluation (IMPORTANT)
+
+The evaluator runs:
+
+```bash
+python inference.py
+```
+
+### ✅ Required Output Format (STRICT)
+
+```text
+[START] task=<task_name>
+[STEP] step=<n> reward=<value>
+[END] task=<task_name> score=<total> steps=<n>
+```
+
+### ⚠️ Rules
+
+* ONLY structured lines in stdout
+* No logs / prints / JSON
+* Any extra output → ❌ FAIL
+
+---
+
+## 🏗️ Project Structure
+
+```
+fellow-buffalo-env/
+│
+├── inference.py        # 🚨 Main evaluation script
+├── environment.py      # Core environment logic
+├── models.py           # Action schemas
+├── app.py              # FastAPI server
+├── server/             # Backend logic
+├── test_emails/        # Email datasets
+├── tasks.py            # Task definitions
+├── Dockerfile
+└── requirements.txt
+```
+
+---
+
+## ▶️ Run Locally
 
 ```bash
 pip install -r requirements.txt
 uvicorn app:app --host 0.0.0.0 --port 7860
 ```
 
+Then in another terminal:
+
+```bash
+python inference.py
+```
+
 ---
 
 ## 🐳 Docker Setup
-
-Run the project using Docker:
 
 ```bash
 docker build -t fellow-buffalo .
@@ -133,32 +181,42 @@ docker run -p 7860:7860 --env-file .env fellow-buffalo
 
 ---
 
-##  Environment Variables
+## 🔐 Environment Variables
 
-| Variable       | Required    | Description            |
-| -------------- | ----------- | ---------------------- |
-| `GROQ_API_KEY` | Yes (Dev)   | Groq API key           |
-| `API_BASE_URL` | Yes (Judge) | LLM API base URL       |
-| `MODEL_NAME`   | Yes (Judge) | Model identifier       |
-| `HF_TOKEN`     | Yes (Judge) | API / Hugging Face key |
-
----
-
-##  Key Highlights
-
-* Real-world email automation environment
-* Multi-step decision-making tasks
-* Reinforcement learning friendly
-* Built for OpenEnv evaluation systems
-* Supports lifecycle-level reasoning
+| Variable     | Description        |
+| ------------ | ------------------ |
+| GROQ_API_KEY | API key (dev)      |
+| API_BASE_URL | Judge endpoint     |
+| MODEL_NAME   | Model used         |
+| HF_TOKEN     | Hugging Face token |
 
 ---
 
-##  Use Cases
+## 🌟 Key Highlights
 
-* AI Agent Training
-* RL-based Decision Systems
-* Email Automation Research
-* LLM Evaluation Benchmarks
+* Real-world email simulation
+* Multi-step RL-compatible tasks
+* Temporal + storage reasoning
+* LLM-powered decision making
+* Strict evaluation pipeline
+
+---
+
+## 🎯 Use Cases
+
+* AI Agents & Autonomous Systems
+* Email Automation
+* LLM Evaluation
+* Reinforcement Learning
+
+---
+
+## 🏆 Submission Note
+
+This project strictly follows **OpenEnv evaluation requirements**, including:
+
+* Structured stdout output
+* Multi-task execution
+* Deterministic scoring
 
 ---
