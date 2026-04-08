@@ -1,7 +1,6 @@
 ---
 
 ---
-
 title: Fellow Buffalo
 emoji: 📧
 colorFrom: blue
@@ -9,14 +8,12 @@ colorTo: green
 sdk: docker
 pinned: false
 tags:
-
-* openenv
-* email
-* nlp
-* real-world
-* rl
-* llm
-
+  - openenv
+  - email
+  - nlp
+  - real-world
+  - rl
+  - llm
 ---
 
 # Fellow Buffalo — AI Email Operating System
