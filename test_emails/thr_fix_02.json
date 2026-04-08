@@ -8,5 +8,6 @@
   "correct_group": "internships_q1",
   "thread_id": "google_fixed_2026",
   "task": 3,
-  "expected_color": "orange"
+  "expected_color": "orange",
+  "difficulty": 1
 }

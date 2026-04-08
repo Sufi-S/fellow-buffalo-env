@@ -1,10 +1,11 @@
 {
   "id": "e09",
-  "subject": "Hackathon Registration Closed — March 15",
+  "subject": "Hackathon Registration Closed \u2014 March 15",
   "body": "Registration for HackIndia 2025 closed on March 15. If you registered, check your email for team details.",
   "attachment_texts": {},
   "correct_tab": "Events",
   "correct_color": "orange",
   "correct_deadline": "2025-03-15T23:59:00",
-  "task": 1
+  "task": 1,
+  "difficulty": 1
 }

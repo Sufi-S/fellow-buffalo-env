@@ -44,6 +44,34 @@ class FellowBuffaloEnv:
         # FIX 1: Add pending_storage_reward for Task 3
         self.pending_storage_reward = 0.0
         
+        # CHANGE 1: Add episode_history
+        self.episode_history = []
+    
+    def _normalize_difficulty(self, difficulty):
+        """Convert difficulty to integer (1=easy, 2=medium, 3=hard)
+        Handles both string and integer input"""
+        if difficulty is None:
+            return 1
+        
+        # If already integer, just return it (but clamp to 1-3 range)
+        if isinstance(difficulty, int):
+            return max(1, min(3, difficulty))
+        
+        # If string, convert using mapping
+        if isinstance(difficulty, str):
+            diff_map = {
+                "easy": 1,
+                "medium": 2,
+                "hard": 3,
+                "1": 1,
+                "2": 2,
+                "3": 3
+            }
+            return diff_map.get(difficulty.lower(), 1)
+        
+        # Default fallback
+        return 1
+        
     def _load_emails(self) -> Dict[int, list]:
         """Load test emails from JSON files"""
         emails = {1: [], 2: [], 3: [], 4: [], 5: []}
@@ -80,7 +108,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "correct_tab": "Internships",
                     "correct_color": "green",
-                    "correct_deadline": "2025-04-15T23:59:00"
+                    "correct_deadline": "2025-04-15T23:59:00",
+                    "difficulty": 2
                 },
                 {
                     "id": "default_002",
@@ -89,7 +118,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "correct_tab": "Jobs",
                     "correct_color": "green",
-                    "correct_deadline": "2025-05-01T23:59:00"
+                    "correct_deadline": "2025-05-01T23:59:00",
+                    "difficulty": 2
                 },
                 {
                     "id": "default_003",
@@ -98,7 +128,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "correct_tab": "General",
                     "correct_color": "red",
-                    "correct_deadline": "2025-03-29T23:59:00"
+                    "correct_deadline": "2025-03-29T23:59:00",
+                    "difficulty": 3
                 },
                 {
                     "id": "default_004",
@@ -107,7 +138,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "correct_tab": "General",
                     "correct_color": "green",
-                    "correct_deadline": None
+                    "correct_deadline": None,
+                    "difficulty": 1
                 }
             ],
             2: [
@@ -115,19 +147,22 @@ class FellowBuffaloEnv:
                     "id": "default_005",
                     "subject": "Tech News: AI Update",
                     "body": "OpenAI released a new model today. The new model shows significant improvements in reasoning capabilities.",
-                    "attachment_texts": {}
+                    "attachment_texts": {},
+                    "difficulty": 2
                 },
                 {
                     "id": "default_006",
                     "subject": "Meeting Summary",
                     "body": "We discussed the Q2 roadmap, budget allocation, and resource planning.",
-                    "attachment_texts": {}
+                    "attachment_texts": {},
+                    "difficulty": 2
                 },
                 {
                     "id": "default_007",
                     "subject": "Product Launch Announcement",
                     "body": "We're excited to announce our new product line launching next month. Features include improved performance and user experience.",
-                    "attachment_texts": {}
+                    "attachment_texts": {},
+                    "difficulty": 2
                 }
             ],
             3: [
@@ -138,7 +173,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "received_date": "2025-03-01",
                     "deadline": "2025-03-20",
-                    "correct_group": "finance_q1"
+                    "correct_group": "finance_q1",
+                    "difficulty": 2
                 },
                 {
                     "id": "default_009",
@@ -147,7 +183,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "received_date": "2025-03-15",
                     "deadline": "2025-04-15",
-                    "correct_group": "internships_q1"
+                    "correct_group": "internships_q1",
+                    "difficulty": 2
                 },
                 {
                     "id": "default_010",
@@ -156,7 +193,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "received_date": "2025-03-10",
                     "deadline": "2025-03-25",
-                    "correct_group": "jobs_q1"
+                    "correct_group": "jobs_q1",
+                    "difficulty": 2
                 },
                 {
                     "id": "default_011",
@@ -165,7 +203,8 @@ class FellowBuffaloEnv:
                     "attachment_texts": {},
                     "received_date": "2025-03-20",
                     "deadline": None,
-                    "correct_group": "news_q1"
+                    "correct_group": "news_q1",
+                    "difficulty": 1
                 }
             ],
             4: [
@@ -173,19 +212,22 @@ class FellowBuffaloEnv:
                     "id": "default_012",
                     "subject": "Internship Application Question",
                     "body": "Dear Team, I applied for the summer internship last week. When can I expect to hear back? Thank you.",
-                    "attachment_texts": {}
+                    "attachment_texts": {},
+                    "difficulty": 2
                 },
                 {
                     "id": "default_013",
                     "subject": "Meeting Reschedule Request",
                     "body": "Hi, I need to reschedule our meeting for tomorrow. Would Thursday work instead? Let me know.",
-                    "attachment_texts": {}
+                    "attachment_texts": {},
+                    "difficulty": 2
                 },
                 {
                     "id": "default_014",
                     "subject": "Invoice Inquiry",
                     "body": "I haven't received the invoice for last month's services. Can you please send it again?",
-                    "attachment_texts": {}
+                    "attachment_texts": {},
+                    "difficulty": 2
                 }
             ],
             5: self._create_default_task5_emails()
@@ -194,22 +236,40 @@ class FellowBuffaloEnv:
     def _create_default_task5_emails(self) -> List[Dict]:
         """Create default emails for Task 5 priority ranking with unique IDs and full content"""
         return [
-            {"id": "email_urgent_server", "subject": "URGENT: Server Down", "body": "Production server is down. Immediate action required.", "importance": 1, "task": 5},
-            {"id": "email_meeting_today", "subject": "Client Meeting Today at 2PM", "body": "Client meeting scheduled for 2PM today. Please prepare slides.", "importance": 2, "task": 5},
-            {"id": "email_team_update", "subject": "Weekly Team Update", "body": "Weekly team sync tomorrow at 10AM.", "importance": 3, "task": 5},
-            {"id": "email_documentation", "subject": "Project Documentation", "body": "Please review the updated documentation.", "importance": 4, "task": 5},
-            {"id": "email_code_review", "subject": "Code Review Request", "body": "Please review PR #123 when you have time.", "importance": 5, "task": 5},
-            {"id": "email_newsletter", "subject": "Company Newsletter", "body": "Monthly company newsletter attached.", "importance": 6, "task": 5},
-            {"id": "email_lunch", "subject": "Lunch Invitation", "body": "Team lunch this Friday at 1PM.", "importance": 7, "task": 5},
-            {"id": "email_social", "subject": "Social Media Post", "body": "Please like our new LinkedIn post.", "importance": 8, "task": 5},
-            {"id": "email_prize", "subject": "You Won a Prize!", "body": "Congratulations! You've won a free gift card.", "importance": 9, "task": 5},
-            {"id": "email_discount", "subject": "Discount Offer", "body": "50% off on all products today only!", "importance": 10, "task": 5},
+            {"id": "email_urgent_server", "subject": "URGENT: Server Down", "body": "Production server is down. Immediate action required.", "importance": 1, "task": 5, "difficulty": 3},
+            {"id": "email_meeting_today", "subject": "Client Meeting Today at 2PM", "body": "Client meeting scheduled for 2PM today. Please prepare slides.", "importance": 2, "task": 5, "difficulty": 2},
+            {"id": "email_team_update", "subject": "Weekly Team Update", "body": "Weekly team sync tomorrow at 10AM.", "importance": 3, "task": 5, "difficulty": 1},
+            {"id": "email_documentation", "subject": "Project Documentation", "body": "Please review the updated documentation.", "importance": 4, "task": 5, "difficulty": 1},
+            {"id": "email_code_review", "subject": "Code Review Request", "body": "Please review PR #123 when you have time.", "importance": 5, "task": 5, "difficulty": 1},
+            {"id": "email_newsletter", "subject": "Company Newsletter", "body": "Monthly company newsletter attached.", "importance": 6, "task": 5, "difficulty": 1},
+            {"id": "email_lunch", "subject": "Lunch Invitation", "body": "Team lunch this Friday at 1PM.", "importance": 7, "task": 5, "difficulty": 1},
+            {"id": "email_social", "subject": "Social Media Post", "body": "Please like our new LinkedIn post.", "importance": 8, "task": 5, "difficulty": 1},
+            {"id": "email_prize", "subject": "You Won a Prize!", "body": "Congratulations! You've won a free gift card.", "importance": 9, "task": 5, "difficulty": 1},
+            {"id": "email_discount", "subject": "Discount Offer", "body": "50% off on all products today only!", "importance": 10, "task": 5, "difficulty": 1},
         ]
     
-    def reset(self, task_id: int = 1) -> FellowBuffaloObservation:
+    # CHANGE 3: Add helper method for hints
+    def _get_tab_hint(self, tab):
+        hints = {
+            "Jobs": "hiring, salary, position, full-time",
+            "Internships": "intern, stipend, fellowship, trainee",
+            "Finance": "invoice, payment, fee, bill, receipt",
+            "Events": "conference, register, fest, webinar, meetup",
+            "Sports": "match, game, tournament, cricket, ipl",
+            "News": "newsletter, digest, update, announcement",
+            "General": "general information"
+        }
+        return hints.get(tab, "")
+    
+    # CHANGE 5: Update reset() signature with seed parameter
+    def reset(self, task_id: int = 1, seed: int = None) -> FellowBuffaloObservation:
         """Reset environment and return first observation"""
         import random
         from datetime import datetime, timedelta
+        
+        # CHANGE 5: Set seed if provided
+        if seed is not None:
+            random.seed(seed)
         
         self.current_task = task_id
         self.step_count = 0
@@ -221,16 +281,25 @@ class FellowBuffaloEnv:
         # FIX 1: Reset pending_storage_reward
         self.pending_storage_reward = 0.0
         
+        # CHANGE 1: Reset episode_history
+        self.episode_history = []
+        
         # NEW: Initialize simulated date (starting March 1, 2026)
         self.simulated_date = datetime(2026, 3, 1)
         
-        # For Task 1: multi-email mode (process up to 5 emails)
+        # CHANGE 2: For Task 1: multi-email mode with difficulty-based ordering
         if task_id == 1:
             emails_for_task = self.emails.get(task_id, [])
             if emails_for_task:
-                # Take up to 5 emails (or all if less) and randomize
-                max_emails = min(5, len(emails_for_task))
-                self.task1_emails_queue = random.sample(emails_for_task, max_emails)
+                # Sort by difficulty — emails with no deadline first (easier)
+                easy = [e for e in emails_for_task if self._normalize_difficulty(e.get('difficulty')) == 1]
+                medium = [e for e in emails_for_task if self._normalize_difficulty(e.get('difficulty')) == 2]
+                hard = [e for e in emails_for_task if self._normalize_difficulty(e.get('difficulty')) == 3]
+                
+                # Order: easy -> medium -> hard
+                all_emails = easy + medium + hard
+                max_emails = min(5, len(all_emails))
+                self.task1_emails_queue = all_emails[:max_emails]
                 self.current_email = self.task1_emails_queue[0].copy()
             else:
                 self.task1_emails_queue = []
@@ -270,7 +339,7 @@ class FellowBuffaloEnv:
             metadata["emails_to_rank"] = [e['id'] for e in self.task5_emails]
             metadata["email_subjects"] = {e['id']: e['subject'] for e in self.task5_emails}  # FIX 2
         
-        # Create observation with storage AND temporal metadata
+        # CHANGE 4: Create observation with normalized difficulty and episode_history
         self.current_observation = FellowBuffaloObservation(
             task_id=task_id,
             step=0,
@@ -279,7 +348,9 @@ class FellowBuffaloEnv:
             attachment_texts=self.current_email.get('attachment_texts', {}),
             deadline=self.current_email.get('correct_deadline') or self.current_email.get('deadline'),
             done=False,
-            metadata=metadata
+            metadata=metadata,
+            episode_history=self.episode_history,
+            difficulty=self._normalize_difficulty(self.current_email.get('difficulty'))
         )
         
         return self.current_observation
@@ -305,6 +376,30 @@ class FellowBuffaloEnv:
             step_reward = task1_grader(correct, agent)
             reward += step_reward
             
+            # CHANGE 1: Append to episode history
+            self.episode_history.append({
+                "step": self.step_count,
+                "email_id": self.current_email.get('id', 'unknown'),
+                "subject": self.current_email.get('subject', '')[:50],
+                "action_tab": action.tab,
+                "action_color": action.color,
+                "reward": step_reward
+            })
+            # Keep only last 3
+            self.episode_history = self.episode_history[-3:]
+            
+            # CHANGE 3: Generate hint if agent did poorly
+            hint = None
+            if step_reward < 0.33:  # agent did poorly on this email
+                correct_tab = self.current_email.get('correct_tab')
+                correct_color = self.current_email.get('correct_color')
+                if action.tab != correct_tab and correct_tab:
+                    hint = f"Hint: Look for keywords like {self._get_tab_hint(correct_tab)}"
+                elif action.color != correct_color and correct_color:
+                    hint = f"Hint: Check the deadline carefully. Past deadline? Future deadline?"
+                elif action.deadline != self.current_email.get('correct_deadline'):
+                    hint = f"Hint: Look for date mentions like 'by', 'before', 'deadline'"
+            
             # Check if there are more emails in the queue
             if hasattr(self, 'task1_emails_queue') and len(self.task1_emails_queue) > self.step_count:
                 # Load next email
@@ -316,7 +411,10 @@ class FellowBuffaloEnv:
                     email_body=self.current_email.get('body', ''),
                     attachment_texts=self.current_email.get('attachment_texts', {}),
                     deadline=self.current_email.get('correct_deadline') or self.current_email.get('deadline'),
-                    done=False
+                    done=False,
+                    episode_history=self.episode_history,
+                    hint=hint,  # CHANGE 3: Add hint
+                    difficulty=self._normalize_difficulty(self.current_email.get('difficulty'))
                 )
                 # Return with reward so far, episode continues
                 return self.current_observation, reward, False
@@ -437,7 +535,8 @@ class FellowBuffaloEnv:
                             "simulated_date": self.simulated_date.strftime('%Y-%m-%d'),
                             "simulated_date_iso": self.simulated_date.isoformat(),
                             "days_per_step": self.days_per_step
-                        }
+                        },
+                        difficulty=self._normalize_difficulty(self.current_email.get('difficulty'))
                     )
                     # FIX 1: Return 0.0 reward for intermediate steps (storage reward stored in pending)
                     return self.current_observation, 0.0, False
@@ -469,7 +568,9 @@ class FellowBuffaloEnv:
             attachment_texts=self.current_email.get('attachment_texts', {}),
             deadline=self.current_email.get('deadline'),
             done=self.done,
-            reward=reward
+            reward=reward,
+            episode_history=self.episode_history,  # CHANGE 1: Add episode_history
+            difficulty=self._normalize_difficulty(self.current_email.get('difficulty'))
         )
         
         return self.current_observation, reward, self.done

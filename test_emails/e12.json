@@ -1,6 +1,6 @@
 {
   "id": "e12",
-  "subject": "Project Report Submission — CS601 Advanced ML",
+  "subject": "Project Report Submission \u2014 CS601 Advanced ML",
   "body": "Submit your final project report by April 20, 2025. The report should be 15-20 pages and cover your methodology, experiments, and results. Submit via the course portal.",
   "attachment_texts": {
     "project_guidelines.docx": "Report must include: Abstract (250 words), Introduction, Literature Review, Methodology, Experiments, Results, Conclusion. Use IEEE format. Font: Times New Roman 12pt. Submit as PDF."
@@ -8,5 +8,6 @@
   "correct_tab": "General",
   "correct_color": "green",
   "correct_deadline": "2025-04-20T23:59:00",
-  "task": 2
+  "task": 2,
+  "difficulty": 1
 }

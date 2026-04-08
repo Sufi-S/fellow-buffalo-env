@@ -7,7 +7,7 @@ import gradio as gr
 import httpx
 import json
 
-ENV_URL = "https://sufi-sufi-fellow-buffalo-env.hf.space"
+ENV_URL = "http://localhost:7860"  # Change to local for development
 
 # API endpoints
 API_BASE = ENV_URL
@@ -223,6 +223,5 @@ with gr.Blocks(title="Fellow Buffalo - Email Triage Environment", theme=gr.theme
     tasks_btn.click(fn=get_tasks, inputs=[], outputs=[observation_out])
     health_btn.click(fn=get_health, inputs=[], outputs=[reward_out])
 
-if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
-    
+# REMOVED the if __name__ == "__main__" block - now just keep the demo variable
+# The demo will be mounted by FastAPI

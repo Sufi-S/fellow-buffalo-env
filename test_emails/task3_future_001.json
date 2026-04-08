@@ -7,5 +7,6 @@
   "deadline": "2026-04-21",
   "correct_group": "internships_q1",
   "task": 3,
-  "expected_color": "green"
+  "expected_color": "green",
+  "difficulty": 1
 }

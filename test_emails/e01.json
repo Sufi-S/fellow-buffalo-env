@@ -1,10 +1,11 @@
 {
   "id": "e01",
-  "subject": "Software Engineer Intern — Meta Summer 2025",
+  "subject": "Software Engineer Intern \u2014 Meta Summer 2025",
   "body": "We are excited to invite applications for our Summer 2025 internship program. Applications close April 15, 2025. Stipend: $8000/month. Requirements: Python, ML basics.",
   "attachment_texts": {},
   "correct_tab": "Internships",
   "correct_color": "green",
   "correct_deadline": "2025-04-15T23:59:00",
-  "task": 1
+  "task": 1,
+  "difficulty": 1
 }

@@ -1,10 +1,11 @@
 {
   "id": "e08",
-  "subject": "Google Research Internship — Application Closed",
+  "subject": "Google Research Internship \u2014 Application Closed",
   "body": "Thank you for your interest. The application deadline was March 20, 2025. We received over 10,000 applications.",
   "attachment_texts": {},
   "correct_tab": "Internships",
   "correct_color": "orange",
   "correct_deadline": "2025-03-20T23:59:00",
-  "task": 1
+  "task": 1,
+  "difficulty": 1
 }

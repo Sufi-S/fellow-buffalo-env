@@ -3,5 +3,6 @@
   "subject": "Interview Invitation - Software Engineer",
   "body": "Dear Candidate,\n\nCongratulations! You have been shortlisted for a technical interview. Please select a time slot from the calendar link below.\n\nDate: April 10-15, 2026\nDuration: 60 minutes\n\nBest regards,\nRecruiting Team",
   "attachment_texts": {},
-  "task": 4
+  "task": 4,
+  "difficulty": 3
 }

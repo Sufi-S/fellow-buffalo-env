@@ -1,10 +1,11 @@
 {
   "id": "e03",
-  "subject": "AI Weekly Newsletter — Top Stories This Week",
+  "subject": "AI Weekly Newsletter \u2014 Top Stories This Week",
   "body": "This week in AI: OpenAI released GPT-5, Google announced Gemini Ultra 2, and Meta open-sourced a new model. Read the full stories below.",
   "attachment_texts": {},
   "correct_tab": "News",
   "correct_color": "green",
   "correct_deadline": null,
-  "task": 1
+  "task": 1,
+  "difficulty": 3
 }

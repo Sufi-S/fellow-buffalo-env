@@ -1,6 +1,6 @@
 {
   "id": "e10",
-  "subject": "Research Internship at IIT Delhi — Summer 2025",
+  "subject": "Research Internship at IIT Delhi \u2014 Summer 2025",
   "body": "We are offering research internships in the areas of Machine Learning, Computer Vision, and NLP. Duration: May to July 2025. Stipend: Rs 15,000/month. Apply with your CV and a 500-word SOP by April 10, 2025.",
   "attachment_texts": {
     "internship_details.pdf": "The internship will involve working on real research problems under faculty supervision. Students from top engineering colleges preferred. CGPA above 8.0 required. Submit your application at the portal."
@@ -8,5 +8,6 @@
   "correct_tab": "Internships",
   "correct_color": "green",
   "correct_deadline": "2025-04-10T23:59:00",
-  "task": 2
+  "task": 2,
+  "difficulty": 1
 }

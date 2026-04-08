@@ -39,6 +39,10 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from openai import OpenAI
 
+# ADD THIS: Import Gradio
+import gradio as gr
+from gradio_app import demo as gradio_interface
+
 from environment import FellowBuffaloEnv
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
 from tasks import task1_grader, task2_grader, task3_grader, task4_grader, task5_grader
@@ -49,6 +53,9 @@ app = FastAPI(
     description="Email triage environment for AI agents",
     version="1.0.0"
 )
+
+# ADD THIS: Mount Gradio interface BEFORE adding CORS and endpoints
+app = gr.mount_gradio_app(app, gradio_interface, path="/gradio")
 
 # Add CORS
 app.add_middleware(
@@ -78,8 +85,10 @@ class StepRequest(BaseModel):
     action: FellowBuffaloAction
 
 
+# CHANGE 3: Update ResetRequest model with seed parameter
 class ResetRequest(BaseModel):
     task_id: int = 1
+    seed: Optional[int] = None  # NEW
 
 
 def get_ai_client():
@@ -363,7 +372,7 @@ async def root():
     return {
         "name": "Fellow Buffalo",
         "description": "Email triage OpenEnv environment",
-        "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/grader", "/web"],
+        "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/benchmark", "/info", "/web", "/gradio"],
         "api_key_configured": bool(os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY') or os.getenv('HF_TOKEN'))
     }
 
@@ -380,12 +389,13 @@ async def health():
     }
 
 
+# CHANGE 3: Update reset endpoint to pass seed parameter
 @app.post("/reset")
 async def reset(request: ResetRequest = ResetRequest()) -> FellowBuffaloObservation:
     """Reset environment and return first observation"""
     global env, last_task_id
     last_task_id = request.task_id
-    observation = env.reset(task_id=request.task_id)
+    observation = env.reset(task_id=request.task_id, seed=request.seed)  # Pass seed
     return observation
 
 
@@ -498,6 +508,102 @@ async def baseline() -> BaselineResponse:
         task_5=scores["task_5"],
         status="completed"
     )
+
+
+# CHANGE 1: Add benchmark endpoint
+@app.post("/benchmark")
+async def benchmark():
+    """Run all tasks 5 times and return average + variance"""
+    import statistics
+    
+    client, model = get_ai_client()
+    if not client:
+        return {"error": "no_api_key", "status": "failed"}
+    
+    results = {"task_1": [], "task_2": [], "task_3": [], "task_4": [], "task_5": []}
+    
+    for run in range(5):
+        print(f"Benchmark run {run + 1}/5...")
+        results["task_1"].append(run_task1_baseline(client, model))
+        results["task_2"].append(run_task2_baseline(client, model))
+        results["task_3"].append(run_task3_baseline(client, model))
+        results["task_4"].append(run_task4_baseline(client, model))
+        results["task_5"].append(run_task5_baseline(client, model))
+    
+    def stats(arr):
+        return {
+            "mean": round(statistics.mean(arr), 3),
+            "stdev": round(statistics.stdev(arr), 3) if len(arr) > 1 else 0.0,
+            "min": round(min(arr), 3),
+            "max": round(max(arr), 3),
+            "runs": arr
+        }
+    
+    return {
+        "task_1": stats(results["task_1"]),
+        "task_2": stats(results["task_2"]),
+        "task_3": stats(results["task_3"]),
+        "task_4": stats(results["task_4"]),
+        "task_5": stats(results["task_5"]),
+        "status": "completed",
+        "runs_completed": 5
+    }
+
+
+# CHANGE 2: Add info endpoint
+@app.get("/info")
+async def info():
+    """Complete environment information for researchers"""
+    return {
+        "name": "Fellow Buffalo",
+        "version": "1.0.0",
+        "description": "Email triage RL environment — classify, summarize, manage lifecycle",
+        "real_world_task": "Email management affects every professional daily. This environment trains AI to automate it.",
+        "observation_space": {
+            "task_id": "int — 1-5",
+            "step": "int — current step number",
+            "email_subject": "string — email subject line",
+            "email_body": "string — email body text",
+            "attachment_texts": "dict — parsed attachment content by filename",
+            "deadline": "string — ISO datetime or null",
+            "difficulty": "int — 1 easy, 2 medium, 3 hard",
+            "hint": "string — optional hint after wrong answer (Task 1)",
+            "episode_history": "list — last 3 step results",
+            "metadata": "dict — storage info, simulated_date, etc.",
+            "done": "bool",
+            "reward": "float — step reward (for observation after step)"
+        },
+        "action_space": {
+            "task_id": "int 1-5",
+            "tab": "Jobs | Internships | News | Sports | Events | Finance | General (Task 1)",
+            "color": "green | orange | red (Tasks 1, 3)",
+            "deadline": "ISO datetime string or null (Task 1)",
+            "confidence": "int 0-100 (Task 1)",
+            "summary": "string (Task 2)",
+            "tag_cloud": "pipe-separated keywords (Task 2)",
+            "reply": "string (Task 4)",
+            "email_ranking": "list of email IDs (Task 5)",
+            "lifecycle_decisions": "list of dicts with color, group, account, trigger_relay (Task 3)"
+        },
+        "reward_range": [-0.5, 1.0],
+        "reward_details": {
+            "task_1": "tab(0.33) + color(0.33) + deadline(0.34) per email, max ~5.0",
+            "task_2": "summary(0.5) + tag_cloud(0.5), max 1.0",
+            "task_3": "color(+0.1/-0.05) + account(0.1) + relay(0.1) + grouping(0.15) + thread(0.05), range -0.5 to 1.0",
+            "task_4": "AI-graded reply quality, 0.0-1.0",
+            "task_5": "position-based ranking, max 1.0"
+        },
+        "tasks": [
+            {"id": 1, "name": "email-intake", "difficulty": "easy", "max_steps": 5},
+            {"id": 2, "name": "metadata-generation", "difficulty": "medium", "max_steps": 1},
+            {"id": 3, "name": "lifecycle-manager", "difficulty": "hard", "max_steps": 10},
+            {"id": 4, "name": "reply-generation", "difficulty": "medium", "max_steps": 1},
+            {"id": 5, "name": "priority-ranking", "difficulty": "hard", "max_steps": 1}
+        ],
+        "why_novel": "Email triage has never been built as an OpenEnv environment. The storage relay mechanic (simulating Gmail's 15GB limit) with simulated date progression for temporal reasoning is unique to this environment.",
+        "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/benchmark", "/info", "/web", "/gradio"],
+        "api_key_configured": bool(os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY'))
+    }
 
 
 @app.get("/grader")
@@ -666,6 +772,7 @@ def main():
     print(f"OPENAI_API_KEY configured: {bool(os.getenv('OPENAI_API_KEY'))}")
     print(f"Server running on http://0.0.0.0:7860")
     print(f"Web UI available at http://localhost:7860/web")
+    print(f"Gradio UI available at http://localhost:7860/gradio")
     uvicorn.run(app, host="0.0.0.0", port=7860)
 
 

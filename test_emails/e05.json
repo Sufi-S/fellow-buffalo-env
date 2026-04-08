@@ -1,10 +1,11 @@
 {
   "id": "e05",
-  "subject": "TechFest 2025 — Register Before March 25",
+  "subject": "TechFest 2025 \u2014 Register Before March 25",
   "body": "VIT TechFest 2025 registrations are open. Events include hackathon, robotics, and coding competitions. Register before March 25, 2025.",
   "attachment_texts": {},
   "correct_tab": "Events",
   "correct_color": "green",
   "correct_deadline": "2025-03-25T23:59:00",
-  "task": 1
+  "task": 1,
+  "difficulty": 1
 }

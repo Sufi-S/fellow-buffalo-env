@@ -35,6 +35,9 @@ class FellowBuffaloObservation(BaseModel):
     done: bool = False
     reward: Optional[float] = None
     metadata: Dict[str, Any] = {}
+    episode_history: Optional[List[Dict]] = []  # last 3 steps
+    hint: Optional[str] = None  # hint for next step if last step was wrong
+    difficulty: Optional[int] = 1  # 1=easy, 2=medium, 3=hard
 
 
 class FellowBuffaloState(BaseModel):

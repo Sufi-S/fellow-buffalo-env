@@ -1,10 +1,11 @@
 {
   "id": "e06",
-  "subject": "Tuition Fee Payment Due — VIT University",
+  "subject": "Tuition Fee Payment Due \u2014 VIT University",
   "body": "Your semester fee of Rs 1,25,000 is due by March 31, 2025. Please pay via the student portal. Late fee applies after deadline.",
   "attachment_texts": {},
   "correct_tab": "Finance",
   "correct_color": "green",
   "correct_deadline": "2025-03-31T23:59:00",
-  "task": 1
+  "task": 1,
+  "difficulty": 1
 }
