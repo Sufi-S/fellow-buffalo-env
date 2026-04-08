@@ -69,8 +69,7 @@ Built for **OpenEnv evaluation**, this environment enables testing **LLM-based d
 ### Task 3
 
 * Per-step lifecycle reward
-* Storage-aware decisions
-* Temporal reasoning
+* Temporal reasoning + storage awareness
 
 ---
 
