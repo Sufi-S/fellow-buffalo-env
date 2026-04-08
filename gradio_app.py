@@ -6,8 +6,21 @@ Professional UI for the OpenEnv environment
 import gradio as gr
 import httpx
 import json
+import os
 
-ENV_URL = "http://localhost:7860"  # Change to local for development
+# Fix for Hugging Face Spaces - automatically detect the correct URL
+def get_api_base():
+    """Get the correct API base URL for the environment"""
+    # For Hugging Face Spaces, the API is served at the same host
+    space_host = os.getenv("SPACE_HOST", "")
+    if space_host:
+        # Running on HF Space
+        return f"https://{space_host}"
+    else:
+        # Local development
+        return "http://localhost:7860"
+
+ENV_URL = get_api_base()
 
 # API endpoints
 API_BASE = ENV_URL
@@ -223,5 +236,5 @@ with gr.Blocks(title="Fellow Buffalo - Email Triage Environment", theme=gr.theme
     tasks_btn.click(fn=get_tasks, inputs=[], outputs=[observation_out])
     health_btn.click(fn=get_health, inputs=[], outputs=[reward_out])
 
-# REMOVED the if __name__ == "__main__" block - now just keep the demo variable
-# The demo will be mounted by FastAPI
+# The demo variable is kept for FastAPI to mount
+# No if __name__ block - FastAPI will handle serving
