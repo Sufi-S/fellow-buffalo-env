@@ -46,24 +46,35 @@ def log_debug(msg: str):
 
 
 def get_client():
-    """Get OpenAI client (works for Groq and OpenAI)"""
-    api_key = os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY') or os.getenv('HF_TOKEN')
+    """Get OpenAI client (works for Groq and OpenAI automatically)"""
+    groq_key = os.getenv('GROQ_API_KEY')
+    openai_key = os.getenv('OPENAI_API_KEY')
+    hf_key = os.getenv('HF_TOKEN')
+    
+    # Determine which API to use
+    using_groq = bool(groq_key)
+    api_key = groq_key or openai_key or hf_key
     
     if not api_key:
         log_debug("ERROR: No API key found")
         return None, None
     
     api_base_url = os.getenv('API_BASE_URL')
-    model_name = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
     
+    # Set model and base URL based on which key is available
     if api_base_url:
         client = OpenAI(api_key=api_key, base_url=api_base_url)
+        model_name = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
+    elif using_groq:
+        # Using Groq
+        client = OpenAI(api_key=api_key, base_url='https://api.groq.com/openai/v1')
+        model_name = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
     else:
-        client = OpenAI(
-            api_key=api_key,
-            base_url='https://api.groq.com/openai/v1'
-        )
+        # Using OpenAI
+        client = OpenAI(api_key=api_key)
+        model_name = os.getenv('MODEL_NAME', 'gpt-4o-mini')
     
+    log_debug(f"Using {'Groq' if using_groq else 'OpenAI'} API with model: {model_name}")
     return client, model_name
 
 

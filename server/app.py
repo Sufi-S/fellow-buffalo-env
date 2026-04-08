@@ -83,8 +83,14 @@ class ResetRequest(BaseModel):
 
 
 def get_ai_client():
-    """Get AI client for baseline"""
-    api_key = os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN')
+    """Get AI client for baseline (works with Groq OR OpenAI)"""
+    groq_key = os.getenv('GROQ_API_KEY')
+    openai_key = os.getenv('OPENAI_API_KEY')
+    hf_key = os.getenv('HF_TOKEN')
+    
+    # Determine which API to use
+    using_groq = bool(groq_key)
+    api_key = groq_key or openai_key or hf_key
     api_base = os.getenv('API_BASE_URL')
     
     if not api_key:
@@ -93,10 +99,16 @@ def get_ai_client():
     if api_base:
         client = OpenAI(api_key=api_key, base_url=api_base)
         model = os.getenv('MODEL_NAME', 'gpt-4o-mini')
-    else:
+    elif using_groq:
+        # Using Groq
         client = OpenAI(api_key=api_key, base_url='https://api.groq.com/openai/v1')
-        model = 'llama-3.3-70b-versatile'
+        model = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
+    else:
+        # Using OpenAI
+        client = OpenAI(api_key=api_key)
+        model = os.getenv('MODEL_NAME', 'gpt-4o-mini')
     
+    print(f"Using {'Groq' if using_groq else 'OpenAI'} API with model: {model}")
     return client, model
 
 
@@ -352,14 +364,14 @@ async def root():
         "name": "Fellow Buffalo",
         "description": "Email triage OpenEnv environment",
         "endpoints": ["/health", "/reset", "/step", "/state", "/tasks", "/baseline", "/grader", "/web"],
-        "api_key_configured": bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))
+        "api_key_configured": bool(os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY') or os.getenv('HF_TOKEN'))
     }
 
 
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    api_key = os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN')
+    api_key = os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY') or os.getenv('HF_TOKEN')
     return {
         "status": "healthy",
         "api_key_configured": bool(api_key),
@@ -501,16 +513,18 @@ async def debug():
     import logging
     logging.basicConfig(level=logging.INFO)
     
-    api_key = os.getenv('GROQ_API_KEY')
+    groq_key = os.getenv('GROQ_API_KEY')
+    openai_key = os.getenv('OPENAI_API_KEY')
     hf_token = os.getenv('HF_TOKEN')
     
     # Try to get client
     client, model = get_ai_client()
     
     result = {
-        "groq_key_exists": bool(api_key),
+        "groq_key_exists": bool(groq_key),
+        "openai_key_exists": bool(openai_key),
         "hf_token_exists": bool(hf_token),
-        "api_key_preview": api_key[:20] + "..." if api_key else None,
+        "api_key_preview": (groq_key or openai_key or hf_token)[:20] + "..." if (groq_key or openai_key or hf_token) else None,
         "client_created": client is not None,
         "model": model if client else None,
         "test_call": None
@@ -648,7 +662,8 @@ def main():
     """Main entry point for the server"""
     import uvicorn
     print("Starting Fellow Buffalo OpenEnv Server...")
-    print(f"GROQ_API_KEY configured: {bool(os.getenv('GROQ_API_KEY') or os.getenv('HF_TOKEN'))}")
+    print(f"GROQ_API_KEY configured: {bool(os.getenv('GROQ_API_KEY'))}")
+    print(f"OPENAI_API_KEY configured: {bool(os.getenv('OPENAI_API_KEY'))}")
     print(f"Server running on http://0.0.0.0:7860")
     print(f"Web UI available at http://localhost:7860/web")
     uvicorn.run(app, host="0.0.0.0", port=7860)
