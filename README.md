@@ -195,7 +195,7 @@ fellow-buffalo-env/
 
 ```
 pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 7860
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 ```
 
 Then:
