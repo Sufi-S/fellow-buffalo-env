@@ -1,0 +1,9 @@
+{
+  "id": "task3_recent_2",
+  "subject": "Job Application",
+  "body": "Deadline was 2026-04-04",
+  "deadline": "2026-04-04",
+  "correct_group": "jobs_q1",
+  "task": 3,
+  "expected_color": "orange"
+}

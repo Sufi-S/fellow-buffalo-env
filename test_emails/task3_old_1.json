@@ -1,0 +1,9 @@
+{
+  "id": "task3_old_1",
+  "subject": "Old Internship",
+  "body": "Closed on 2026-03-08",
+  "deadline": "2026-03-08",
+  "correct_group": "internships_q1",
+  "task": 3,
+  "expected_color": "red"
+}

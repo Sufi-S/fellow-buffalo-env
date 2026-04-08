@@ -1,0 +1,9 @@
+{
+  "id": "task3_future_1",
+  "subject": "Summer Internship 2026",
+  "body": "Apply by 2026-04-17",
+  "deadline": "2026-04-17",
+  "correct_group": "internships_q1",
+  "task": 3,
+  "expected_color": "green"
+}

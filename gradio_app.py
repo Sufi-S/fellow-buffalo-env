@@ -225,3 +225,4 @@ with gr.Blocks(title="Fellow Buffalo - Email Triage Environment", theme=gr.theme
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860)
+    

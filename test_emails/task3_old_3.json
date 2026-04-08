@@ -1,0 +1,9 @@
+{
+  "id": "task3_old_3",
+  "subject": "Old Fee Reminder",
+  "body": "Due 2026-03-08",
+  "deadline": "2026-03-08",
+  "correct_group": "finance_q1",
+  "task": 3,
+  "expected_color": "red"
+}

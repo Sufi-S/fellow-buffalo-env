@@ -41,7 +41,7 @@ from openai import OpenAI
 
 from environment import FellowBuffaloEnv
 from models import FellowBuffaloAction, FellowBuffaloObservation, FellowBuffaloState
-from tasks import task1_grader, task2_grader, task3_grader, task4_grader
+from tasks import task1_grader, task2_grader, task3_grader, task4_grader, task5_grader
 
 # Create FastAPI app
 app = FastAPI(
@@ -70,6 +70,7 @@ class BaselineResponse(BaseModel):
     task_2: float
     task_3: float
     task_4: float
+    task_5: float  # ADD THIS
     status: str
 
 
@@ -322,6 +323,29 @@ def run_task4_baseline(client, model) -> float:
         return 0.0
 
 
+def run_task5_baseline(client, model) -> float:
+    """Run Task 5 baseline - Priority Ranking"""
+    try:
+        test_env = FellowBuffaloEnv()
+        obs = test_env.reset(task_id=5)
+        
+        # Get email IDs from metadata
+        email_ids = obs.metadata.get('emails_to_rank', [])
+        
+        # Simple baseline ranking (just return as-is)
+        action = FellowBuffaloAction(
+            task_id=5,
+            email_ranking=email_ids
+        )
+        
+        _, reward, _ = test_env.step(action)
+        return round(reward, 4)
+        
+    except Exception as e:
+        print(f"Task 5 baseline error: {e}")
+        return 0.0
+
+
 @app.get("/")
 async def root():
     return {
@@ -416,6 +440,15 @@ async def tasks() -> Dict[str, Any]:
                 "action_schema": {
                     "reply": "string (AI-generated email reply)"
                 }
+            },
+            {
+                "id": 5,
+                "name": "priority-ranking",
+                "difficulty": "hard",
+                "description": "Rank 10 emails by priority/urgency",
+                "action_schema": {
+                    "email_ranking": "list of email IDs in priority order"
+                }
             }
         ]
     }
@@ -423,8 +456,8 @@ async def tasks() -> Dict[str, Any]:
 
 @app.post("/baseline")
 async def baseline() -> BaselineResponse:
-    """Run baseline inference and return scores - FIXED: Direct execution"""
-    scores = {"task_1": 0.0, "task_2": 0.0, "task_3": 0.0, "task_4": 0.0}
+    """Run baseline inference and return scores"""
+    scores = {"task_1": 0.0, "task_2": 0.0, "task_3": 0.0, "task_4": 0.0, "task_5": 0.0}
     
     client, model = get_ai_client()
     
@@ -434,20 +467,23 @@ async def baseline() -> BaselineResponse:
             task_2=0.0,
             task_3=0.0,
             task_4=0.0,
+            task_5=0.0,
             status="no_api_key"
         )
     
-    # Run each task directly (no self-calling)
+    # Run each task directly
     scores["task_1"] = run_task1_baseline(client, model)
     scores["task_2"] = run_task2_baseline(client, model)
     scores["task_3"] = run_task3_baseline(client, model)
     scores["task_4"] = run_task4_baseline(client, model)
+    scores["task_5"] = run_task5_baseline(client, model)
     
     return BaselineResponse(
         task_1=scores["task_1"],
         task_2=scores["task_2"],
         task_3=scores["task_3"],
         task_4=scores["task_4"],
+        task_5=scores["task_5"],
         status="completed"
     )
 
@@ -523,6 +559,7 @@ async def web_interface():
                 <option value="2">Task 2 — Metadata Generation (Medium)</option>
                 <option value="3">Task 3 — Lifecycle Manager (Hard)</option>
                 <option value="4">Task 4 — Reply Generation (Medium)</option>
+                <option value="5">Task 5 — Priority Ranking (Hard)</option>
             </select>
             <button onclick="reset()">Reset</button>
         </div>

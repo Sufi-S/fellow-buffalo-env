@@ -1,6 +1,6 @@
 """
 Fellow Buffalo - Baseline Inference Script
-Runs the AI agent against all 3 tasks and prints scores.
+Runs the AI agent against all 5 tasks and prints structured output only.
 """
 
 
@@ -40,24 +40,25 @@ from openai import OpenAI
 from models import FellowBuffaloAction
 
 
+def log_debug(msg: str):
+    """Print debug messages to stderr (not stdout)"""
+    print(msg, file=sys.stderr, flush=True)
+
+
 def get_client():
     """Get OpenAI client (works for Groq and OpenAI)"""
-    # Try to get API key from multiple sources
     api_key = os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY') or os.getenv('HF_TOKEN')
     
     if not api_key:
-        print("ERROR: No API key found. Check your .env file.")
-        print(f"GROQ_API_KEY in env: {os.getenv('GROQ_API_KEY') is not None}")
+        log_debug("ERROR: No API key found")
         return None, None
     
     api_base_url = os.getenv('API_BASE_URL')
     model_name = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
     
     if api_base_url:
-        # Judge environment
         client = OpenAI(api_key=api_key, base_url=api_base_url)
     else:
-        # Development with Groq
         client = OpenAI(
             api_key=api_key,
             base_url='https://api.groq.com/openai/v1'
@@ -85,42 +86,39 @@ def call_ai(prompt: str, max_tokens: int = 500) -> str:
         )
         return response.choices[0].message.content or ""
     except Exception as e:
-        print(f"AI call failed: {e}")
+        log_debug(f"AI call failed: {e}")
         return "{}"
 
 
 def run_single_task(task_id: int) -> float:
-    """Run a single task and return score - Multi-email support for Task 1"""
+    """Run a single task and return score"""
     env_url = os.getenv('ENV_URL', 'http://localhost:7860')
     
-    # Reset environment
+    task_names = {1: "email-intake", 2: "metadata-generation", 3: "lifecycle-manager", 4: "reply-generation", 5: "priority-ranking"}
+    task_name = task_names.get(task_id, f"task{task_id}")
+    
+    print(f"[START] task={task_name}", flush=True)
+    
     try:
         reset_response = httpx.post(f"{env_url}/reset", json={"task_id": task_id}, timeout=30)
         if reset_response.status_code != 200:
-            print(f"Failed to reset task {task_id}: {reset_response.status_code}")
+            log_debug(f"Failed to reset task {task_id}")
+            print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
             return 0.0
         observation = reset_response.json()
     except Exception as e:
-        print(f"Connection error: {e}")
+        log_debug(f"Connection error: {e}")
+        print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
         return 0.0
     
     total_reward = 0.0
     step_count = 0
-    email_count = 0
     
     # Task 1: Multi-email mode
     if task_id == 1:
-        print(f"  📧 Starting multi-email Task 1 (will process multiple emails)")
-        
         while not observation.get('done', False) and step_count < 50:
             step_count += 1
-            email_count += 1
             
-            print(f"\n  📧 Email {email_count}: {observation.get('email_subject', '')[:60]}...")
-            if observation.get('deadline'):
-                print(f"  📅 Deadline: {observation.get('deadline')}")
-            
-            # Build prompt for classification with confidence
             prompt = f"""
 Classify this email and rate your confidence:
 
@@ -131,15 +129,13 @@ Return JSON with: tab, color, deadline, confidence
 tab options: Jobs, Internships, News, Sports, Events, Finance, General
 color options: green, orange, red
 deadline: ISO datetime or null
-confidence: 0-100 (how sure are you? 100 = extremely confident)
+confidence: 0-100
 
 Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59:00", "confidence": 85}}
 """
             
-            # Get AI response
             ai_response = call_ai(prompt)
             
-            # Parse JSON
             try:
                 json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
                 if json_match:
@@ -147,7 +143,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 else:
                     data = {}
             except Exception as e:
-                print(f"JSON parse error: {e}")
+                log_debug(f"JSON parse error: {e}")
                 data = {}
             
             action = FellowBuffaloAction(
@@ -160,9 +156,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 tag_cloud=None,
                 lifecycle_decisions=None
             )
-            print(f"  🤖 AI predicted: tab={action.tab}, color={action.color}, deadline={action.deadline}, confidence={action.confidence}")
             
-            # Step
             try:
                 step_response = httpx.post(
                     f"{env_url}/step", 
@@ -170,28 +164,24 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                     timeout=30
                 )
                 if step_response.status_code != 200:
-                    print(f"Step failed: {step_response.status_code}")
+                    log_debug(f"Step failed: {step_response.status_code}")
                     break
                 result = step_response.json()
                 reward = result.get('reward', 0.0)
                 total_reward += reward
                 observation = result.get('observation', {})
-                print(f"  💰 Reward: {reward:.2f}, Total: {total_reward:.2f}")
+                
+                print(f"[STEP] step={step_count} reward={reward:.4f}", flush=True)
+                
             except Exception as e:
-                print(f"Step error: {e}")
+                log_debug(f"Step error: {e}")
                 break
             
             if result.get('done', False):
-                print(f"\n  ✅ Task completed after {email_count} emails")
                 break
-        
-        # UPDATED: Show score as X/5.0
-        print(f"\n📊 Task 1 final score: {total_reward:.4f} / 5.0 (from {email_count} emails)")
     
+    # Task 2: Metadata generation
     elif task_id == 2:
-        # Task 2: Single email
-        print(f"  📧 Processing email: {observation.get('email_subject', '')[:60]}...")
-        
         prompt = f"""
         Summarize this email and generate tag cloud:
         Subject: {observation.get('email_subject', '')}
@@ -199,7 +189,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
         Attachments: {observation.get('attachment_texts', {})}
         
         Return JSON with: summary, tag_cloud
-        tag_cloud: pipe-separated keywords (e.g., "keyword1|keyword2|keyword3")
+        tag_cloud: pipe-separated keywords
         
         Example: {{"summary": "This email is about...", "tag_cloud": "keyword1|keyword2|keyword3"}}
         """
@@ -213,7 +203,7 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             else:
                 data = {}
         except Exception as e:
-            print(f"JSON parse error: {e}")
+            log_debug(f"JSON parse error: {e}")
             data = {}
         
         action = FellowBuffaloAction(
@@ -225,8 +215,6 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
             tag_cloud=data.get('tag_cloud', ''),
             lifecycle_decisions=None
         )
-        print(f"  🤖 AI summary: {action.summary[:50]}..." if action.summary else "  🤖 AI summary: None")
-        print(f"  🏷️  AI tags: {action.tag_cloud}")
         
         try:
             step_response = httpx.post(
@@ -235,67 +223,58 @@ Example: {{"tab": "Internships", "color": "green", "deadline": "2025-04-15T23:59
                 timeout=30
             )
             if step_response.status_code != 200:
-                print(f"Step failed: {step_response.status_code}")
+                log_debug(f"Step failed: {step_response.status_code}")
+                print(f"[STEP] step=1 reward=0.0", flush=True)
+                print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
                 return 0.0
             result = step_response.json()
             total_reward = result.get('reward', 0.0)
+            step_count = 1
+            
+            print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
+            
         except Exception as e:
-            print(f"Step error: {e}")
+            log_debug(f"Step error: {e}")
+            print(f"[STEP] step=1 reward=0.0", flush=True)
+            print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
             return 0.0
     
+    # Task 3: Lifecycle manager
     elif task_id == 3:
-        # Task 3: Multiple emails
-        print(f"  📧 Starting Task 3 (lifecycle management with temporal reasoning and storage monitoring)")
-        
         while not observation.get('done', False) and step_count < 50:
             step_count += 1
             
-            print(f"\n  📧 Email {step_count}: {observation.get('email_subject', '')[:60]}...")
-            if observation.get('deadline'):
-                print(f"  📅 Deadline: {observation.get('deadline')}")
-            
             subject = observation.get('email_subject', '')
-            body = observation.get('email_body', '')[:500]
             deadline_str = observation.get('deadline', '')
             from datetime import datetime
             today = datetime.now().strftime('%Y-%m-%d')
             
-            # Get storage AND temporal info from metadata
             metadata = observation.get('metadata', {})
             storage_used = metadata.get('storage_used_gb', 8.5)
             storage_max = metadata.get('storage_max_gb', 15.0)
             storage_percent = metadata.get('storage_percent', 56.7)
             storage_warning = metadata.get('storage_warning', False)
             storage_critical = metadata.get('storage_critical', False)
-            
-            # NEW: Get simulated date
             simulated_date = metadata.get('simulated_date', datetime.now().strftime('%Y-%m-%d'))
             
-            # Updated prompt with simulated date
             prompt = f"""
-IMPORTANT: The current date in this simulation is {simulated_date}.
-(This may be different from today's real date. Use THIS date for all deadline calculations.)
-
-Today's real date is {today} (for reference only - use {simulated_date} for decisions).
+IMPORTANT: Current simulation date is {simulated_date}.
 
 Email subject: {subject}
 Deadline: {deadline_str}
 Storage: {storage_used:.1f} GB of {storage_max:.0f} GB ({storage_percent:.0f}% full)
-Storage warning: {'YES - over 12GB' if storage_warning else 'No'}
-Storage critical: {'YES - over 14GB, MUST RELAY!' if storage_critical else 'No'}
+Storage critical: {'YES' if storage_critical else 'No'}
 
-Based on the SIMULATED DATE ({simulated_date}), decide:
-- color: green (deadline is AFTER {simulated_date})
-- orange (deadline was 0-7 days BEFORE {simulated_date})
-- red (deadline was MORE than 7 days before {simulated_date})
+Based on {simulated_date}:
+- color: green (deadline AFTER {simulated_date})
+- orange (deadline 0-7 days BEFORE {simulated_date})
+- red (deadline MORE than 7 days BEFORE {simulated_date})
 - group: internships_q1, jobs_q1, finance_q1, events_q1, news_q1, general_q1
-- account: primary (active emails) or archive (old/red emails)
-- trigger_relay: true ONLY if storage is critical (>14 GB), otherwise false
-
-If storage is critical (>14 GB), you MUST trigger relay by setting trigger_relay=true
+- account: primary or archive
+- trigger_relay: true ONLY if storage critical (>14 GB)
 
 Return JSON only:
-{{"color": "red", "group": "finance_q1", "account": "archive", "trigger_relay": false, "thread_id": "vit_fee_2026"}}
+{{"color": "red", "group": "finance_q1", "account": "archive", "trigger_relay": false}}
 """
             
             ai_response = call_ai(prompt)
@@ -307,15 +286,9 @@ Return JSON only:
                 else:
                     data = {}
             except Exception as e:
-                print(f"JSON parse error: {e}")
+                log_debug(f"JSON parse error: {e}")
                 data = {}
             
-            color = data.get('color', 'green')
-            group = data.get('group', 'general_q1')
-            account = data.get('account', 'primary')
-            trigger_relay = data.get('trigger_relay', False)
-            
-            # Updated action creation with account, thread_id, and trigger_relay
             action = FellowBuffaloAction(
                 task_id=task_id,
                 tab=None,
@@ -324,16 +297,15 @@ Return JSON only:
                 summary=None,
                 tag_cloud=None,
                 lifecycle_decisions=[{
-                    'color': color,
-                    'group': group,
-                    'account': account,
-                    'trigger_relay': trigger_relay,
+                    'color': data.get('color', 'green'),
+                    'group': data.get('group', 'general_q1'),
+                    'account': data.get('account', 'primary'),
+                    'trigger_relay': data.get('trigger_relay', False),
                     'deadline': observation.get('deadline'),
                     'email_id': observation.get('email_subject', '')[:20],
                     'thread_id': data.get('thread_id', '')
                 }]
             )
-            print(f"  🤖 AI decision: color={color}, group={group}, account={account}, trigger_relay={trigger_relay}, thread_id={data.get('thread_id', '')[:30]}")
             
             try:
                 step_response = httpx.post(
@@ -342,25 +314,24 @@ Return JSON only:
                     timeout=30
                 )
                 if step_response.status_code != 200:
-                    print(f"Step failed: {step_response.status_code}")
+                    log_debug(f"Step failed: {step_response.status_code}")
                     break
                 result = step_response.json()
                 reward = result.get('reward', 0.0)
                 total_reward += reward
                 observation = result.get('observation', {})
-                print(f"  💰 Reward: {reward:.2f}, Total: {total_reward:.2f}")
+                
+                print(f"[STEP] step={step_count} reward={reward:.4f}", flush=True)
+                
             except Exception as e:
-                print(f"Step error: {e}")
+                log_debug(f"Step error: {e}")
                 break
             
             if result.get('done', False):
-                print(f"\n  ✅ Task completed after {step_count} steps")
                 break
     
+    # Task 4: Reply generation
     elif task_id == 4:
-        # Task 4: Reply Generation
-        print(f"  📧 Processing email for reply: {observation.get('email_subject', '')[:60]}...")
-        
         prompt = f"""
         Write a professional reply to this email:
         
@@ -368,7 +339,7 @@ Return JSON only:
         Body: {observation.get('email_body', '')[:800]}
         
         Return JSON only with: reply
-        Example: {{"reply": "Dear Sir/Madam,\\n\\nThank you for your email. I will...\\n\\nBest regards,\\n[Your Name]"}}
+        Example: {{"reply": "Dear Sir/Madam,\\n\\nThank you for your email...\\n\\nBest regards"}}
         """
         
         ai_response = call_ai(prompt, max_tokens=300)
@@ -380,14 +351,13 @@ Return JSON only:
             else:
                 data = {}
         except Exception as e:
-            print(f"JSON parse error: {e}")
+            log_debug(f"JSON parse error: {e}")
             data = {}
         
         action = FellowBuffaloAction(
             task_id=task_id,
             reply=data.get('reply', '')
         )
-        print(f"  🤖 AI reply: {action.reply[:100]}..." if action.reply else "  🤖 AI reply: None")
         
         try:
             step_response = httpx.post(
@@ -396,50 +366,44 @@ Return JSON only:
                 timeout=30
             )
             if step_response.status_code != 200:
-                print(f"Step failed: {step_response.status_code}")
+                log_debug(f"Step failed: {step_response.status_code}")
+                print(f"[STEP] step=1 reward=0.0", flush=True)
+                print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
                 return 0.0
             result = step_response.json()
             total_reward = result.get('reward', 0.0)
+            step_count = 1
+            
+            print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
+            
         except Exception as e:
-            print(f"Step error: {e}")
+            log_debug(f"Step error: {e}")
+            print(f"[STEP] step=1 reward=0.0", flush=True)
+            print(f"[END] task={task_name} score=0.0 steps=0", flush=True)
             return 0.0
     
+    # Task 5: Priority ranking
     elif task_id == 5:
-        # Task 5: Priority Ranking - SINGLE STEP
-        print(f"  📧 Ranking 10 emails by priority...")
-        
-        # Get all emails from metadata
         emails_to_rank = observation.get('metadata', {}).get('emails_to_rank', [])
+        email_subjects = observation.get('metadata', {}).get('email_subjects', {})
         
-        if emails_to_rank:
-            # Use the email IDs from metadata
-            email_list = "\n".join([f"{i+1}. {emails_to_rank[i]}" for i in range(len(emails_to_rank))])
+        if emails_to_rank and email_subjects:
+            email_list = "\n".join([
+                f"{i+1}. {email_subjects.get(eid, 'Unknown')}"
+                for i, eid in enumerate(emails_to_rank)
+            ])
         else:
-            # Fallback: use subjects from observation
-            email_subjects = []
-            for i in range(10):
-                subject = observation.get(f'email_{i}_subject', '')
-                if subject:
-                    email_subjects.append(subject)
-                else:
-                    email_subjects.append(observation.get('email_subject', ''))
-            email_list = "\n".join([f"{i+1}. {email_subjects[i][:80]}" for i in range(len(email_subjects))])
+            email_list = "\n".join([f"{i+1}. Email {i+1}" for i in range(10)])
         
-        # Build ranking prompt
         prompt = f"""
-    Rank these 10 emails by priority (1 = most urgent/important, 10 = least important).
-    
-    Rules:
-    - Urgent server issues, client meetings = high priority (1-2)
-    - Work tasks, deadlines = medium priority (3-6)
-    - Newsletters, social media, spam = low priority (7-10)
-    
-    Emails:
-    {email_list}
-    
-    Return JSON with ranking as list of numbers 1-10 in priority order.
-    Example: {{"ranking": [3, 1, 5, 2, 4, 6, 7, 8, 9, 10]}}
-    """
+Rank these 10 emails by priority (1 = most urgent, 10 = least urgent).
+
+Emails:
+{email_list}
+
+Return JSON with ranking as list of numbers 1-10.
+Example: {{"ranking": [3, 1, 5, 2, 4, 6, 7, 8, 9, 10]}}
+"""
         
         ai_response = call_ai(prompt, max_tokens=200)
         
@@ -447,16 +411,18 @@ Return JSON only:
             json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group())
-                ranking = data.get('ranking', list(range(1, 11)))
+                ranking_numbers = data.get('ranking', list(range(1, 11)))
             else:
-                ranking = list(range(1, 11))
+                ranking_numbers = list(range(1, 11))
         except Exception as e:
-            print(f"JSON parse error: {e}")
-            ranking = list(range(1, 11))
+            log_debug(f"JSON parse error: {e}")
+            ranking_numbers = list(range(1, 11))
         
-        # Convert numbers to email IDs (1-index to 0-index)
-        ranking_ids = [f"email_{num-1}" for num in ranking]
-        print(f"  🤖 AI ranking: {ranking_ids[:5]}... (showing first 5)")
+        email_ids = observation.get('metadata', {}).get('emails_to_rank', [])
+        if not email_ids:
+            email_ids = [f"email_{i}" for i in range(10)]
+        
+        ranking_ids = [email_ids[num-1] for num in ranking_numbers]
         
         action = FellowBuffaloAction(
             task_id=task_id,
@@ -470,48 +436,22 @@ Return JSON only:
         )
         result = step_response.json()
         total_reward = result.get('reward', 0.0)
-        print(f"  💰 Ranking reward: {total_reward:.4f}")
+        step_count = 1
+        
+        print(f"[STEP] step=1 reward={total_reward:.4f}", flush=True)
+    
+    print(f"[END] task={task_name} score={total_reward:.4f} steps={step_count}", flush=True)
     
     return total_reward
 
 
 def main():
-    """Run all 5 tasks and print scores"""
-    print("Fellow Buffalo Baseline Agent")
-    print("=" * 40)
-    
-    # Print environment info for debugging
-    api_key = os.getenv('GROQ_API_KEY') or os.getenv('OPENAI_API_KEY')
-    print(f"API Key found: {bool(api_key)}")
-    if api_key:
-        print(f"API Key preview: {api_key[:20]}...")
-    print(f"Using Groq: {os.getenv('GROQ_API_KEY') is not None}")
-    print(f"Environment URL: {os.getenv('ENV_URL', 'http://localhost:7860')}")
-    print("=" * 40)
-    
+    """Run all 5 tasks - NO stdout prints except structured blocks"""
     scores = {}
     
     for task_id in [1, 2, 3, 4, 5]:
-        print(f"\n{'='*40}")
-        print(f"Running Task {task_id}...")
-        print('='*40)
         score = run_single_task(task_id)
         scores[f"task_{task_id}"] = round(score, 4)
-        
-        # Show score with denominator based on task
-        if task_id == 1:
-            print(f"\n📊 Task {task_id} final score: {score:.4f} / 5.0")
-        elif task_id == 5:
-            print(f"\n📊 Task {task_id} final score: {score:.4f} / 1.0 (ranking accuracy)")
-        else:
-            print(f"\n📊 Task {task_id} final score: {score:.4f} / 1.0")
-    
-    print("\n" + "=" * 40)
-    print("🏆 FINAL SCORES:")
-    print(json.dumps(scores, indent=2))
-    print("=" * 40)
-    
-    return scores
 
 
 if __name__ == "__main__":

@@ -41,6 +41,9 @@ class FellowBuffaloEnv:
         self.simulated_date = None  # Will be set in reset
         self.days_per_step = 2  # Each step advances 2 days
         
+        # FIX 1: Add pending_storage_reward for Task 3
+        self.pending_storage_reward = 0.0
+        
     def _load_emails(self) -> Dict[int, list]:
         """Load test emails from JSON files"""
         emails = {1: [], 2: [], 3: [], 4: [], 5: []}
@@ -215,6 +218,9 @@ class FellowBuffaloEnv:
         self.storage_used_gb = 8.5
         self.storage_warning_triggered = False
         
+        # FIX 1: Reset pending_storage_reward
+        self.pending_storage_reward = 0.0
+        
         # NEW: Initialize simulated date (starting March 1, 2026)
         self.simulated_date = datetime(2026, 3, 1)
         
@@ -246,6 +252,24 @@ class FellowBuffaloEnv:
             else:
                 self.current_email = self._create_default_emails()[task_id][0].copy()
         
+        # FIX 2: Add email_subjects to Task 5 metadata
+        metadata = {
+            "storage_used_gb": self.storage_used_gb,
+            "storage_max_gb": self.storage_max_gb,
+            "storage_percent": round((self.storage_used_gb / self.storage_max_gb) * 100, 1),
+            "storage_warning": self.storage_used_gb > 12.0,
+            "storage_account": f"Mail_{chr(ord('X') + self.storage_account_index - 1)}",
+            # NEW: Temporal metadata
+            "simulated_date": self.simulated_date.strftime('%Y-%m-%d'),
+            "simulated_date_iso": self.simulated_date.isoformat(),
+            "days_per_step": self.days_per_step,
+        }
+        
+        # Add Task 5 specific metadata if applicable
+        if task_id == 5:
+            metadata["emails_to_rank"] = [e['id'] for e in self.task5_emails]
+            metadata["email_subjects"] = {e['id']: e['subject'] for e in self.task5_emails}  # FIX 2
+        
         # Create observation with storage AND temporal metadata
         self.current_observation = FellowBuffaloObservation(
             task_id=task_id,
@@ -255,19 +279,7 @@ class FellowBuffaloEnv:
             attachment_texts=self.current_email.get('attachment_texts', {}),
             deadline=self.current_email.get('correct_deadline') or self.current_email.get('deadline'),
             done=False,
-            metadata={
-                "storage_used_gb": self.storage_used_gb,
-                "storage_max_gb": self.storage_max_gb,
-                "storage_percent": round((self.storage_used_gb / self.storage_max_gb) * 100, 1),
-                "storage_warning": self.storage_used_gb > 12.0,
-                "storage_account": f"Mail_{chr(ord('X') + self.storage_account_index - 1)}",
-                # NEW: Temporal metadata
-                "simulated_date": self.simulated_date.strftime('%Y-%m-%d'),
-                "simulated_date_iso": self.simulated_date.isoformat(),
-                "days_per_step": self.days_per_step,
-                # Task 5 metadata
-                "emails_to_rank": [e['id'] for e in self.task5_emails] if task_id == 5 else []
-            }
+            metadata=metadata
         )
         
         return self.current_observation
@@ -382,22 +394,29 @@ class FellowBuffaloEnv:
                     decision['storage_used'] = self.storage_used_gb
                     decision['storage_warning'] = storage_warning
                     decision['simulated_date'] = self.simulated_date.isoformat()  # NEW
-                    decision['expected_color'] = correct_color_for_step  # NEW
+                    decision['correct_color_for_step'] = correct_color_for_step  
             
             self.transitions.extend(action.lifecycle_decisions) if action.lifecycle_decisions else None
             
             # Check if we've processed enough emails
             if self.step_count >= len(self.emails.get(3, [])):
                 correct_groups = [e.get('correct_group') for e in self.emails.get(3, []) if e.get('correct_group')]
+                
+                # FIX 1: Add pending_storage_reward to final score instead of returning it mid-episode
                 reward = task3_grader(self.transitions, correct_groups)
-                reward += storage_reward  # Add storage reward to final score
+                reward += self.pending_storage_reward  # Add all accumulated storage rewards
                 reward = max(0.0, min(1.0, reward))  # Clamp between 0 and 1
+                self.pending_storage_reward = 0.0  # Reset for next episode
                 self.done = True
             else:
                 # Load next email
                 next_index = self.step_count
                 if next_index < len(self.emails.get(3, [])):
                     self.current_email = self.emails[3][next_index].copy()
+                    
+                    # FIX 1: Store storage_reward for final accumulation, don't return it now
+                    self.pending_storage_reward += storage_reward
+                    
                     # Update observation with storage AND temporal info
                     self.current_observation = FellowBuffaloObservation(
                         task_id=self.current_task,
@@ -420,7 +439,8 @@ class FellowBuffaloEnv:
                             "days_per_step": self.days_per_step
                         }
                     )
-                    return self.current_observation, storage_reward, False
+                    # FIX 1: Return 0.0 reward for intermediate steps (storage reward stored in pending)
+                    return self.current_observation, 0.0, False
         
         elif self.current_task == 4:
             # Task 4: Reply Generation

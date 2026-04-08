@@ -9,5 +9,5 @@ COPY . .
 
 EXPOSE 7860
 
-# Run Gradio app instead of FastAPI for better UI
-CMD ["python", "gradio_app.py"]
+
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
