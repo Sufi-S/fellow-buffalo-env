@@ -1,0 +1,9 @@
+{
+  "id": "email_social",
+  "subject": "Follow Us on LinkedIn!",
+  "body": "Please like and share our latest LinkedIn post. Help us reach 10,000 followers!",
+  "attachment_texts": {},
+  "importance": 8,
+  "task": 5,
+  "difficulty": 1
+}

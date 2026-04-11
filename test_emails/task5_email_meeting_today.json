@@ -1,0 +1,9 @@
+{
+  "id": "email_meeting_today",
+  "subject": "Client Meeting Today at 2PM \u2014 Board Room",
+  "body": "Important client meeting today at 2PM. Please prepare Q1 presentation. Client is from Infosys.",
+  "attachment_texts": {},
+  "importance": 2,
+  "task": 5,
+  "difficulty": 2
+}

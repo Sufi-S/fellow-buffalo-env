@@ -1,0 +1,9 @@
+{
+  "id": "email_code_review",
+  "subject": "Code Review Needed \u2014 PR #456 Payment Gateway",
+  "body": "Please review PR #456 for the payment gateway. This is blocking tomorrow's release.",
+  "attachment_texts": {},
+  "importance": 3,
+  "task": 5,
+  "difficulty": 2
+}

@@ -1,0 +1,9 @@
+{
+  "id": "email_newsletter",
+  "subject": "Company Newsletter \u2014 April 2026",
+  "body": "Monthly company newsletter. New office opening, team awards, and upcoming events.",
+  "attachment_texts": {},
+  "importance": 6,
+  "task": 5,
+  "difficulty": 1
+}

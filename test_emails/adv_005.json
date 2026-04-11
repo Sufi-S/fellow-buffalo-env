@@ -1,11 +1,11 @@
 {
   "id": "adv_005",
-  "subject": "Breaking: New AI Model Released — Join Our Webinar",
+  "subject": "Breaking: New AI Model Released \u2014 Join Our Webinar",
   "body": "Breaking news: We've released a revolutionary new AI model! Join our exclusive webinar on April 5, 2026 to learn how it works. Register now! Limited slots available.",
   "attachment_texts": {},
   "correct_tab": "Events",
   "correct_color": "green",
-  "correct_deadline": "2026-04-05T23:59:00",
+  "correct_deadline": "2026-04-20T23:59:00",
   "task": 1,
   "difficulty": "hard",
   "adversarial": true

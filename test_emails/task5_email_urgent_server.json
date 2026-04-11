@@ -1,0 +1,9 @@
+{
+  "id": "email_urgent_server",
+  "subject": "URGENT: Production Server Down",
+  "body": "Production server is down. Customers cannot access service. All hands on deck. P0 incident.",
+  "attachment_texts": {},
+  "importance": 1,
+  "task": 5,
+  "difficulty": 3
+}

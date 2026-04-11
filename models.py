@@ -48,3 +48,4 @@ class FellowBuffaloState(BaseModel):
     max_steps: int
     done: bool
     score: Optional[float] = None
+    

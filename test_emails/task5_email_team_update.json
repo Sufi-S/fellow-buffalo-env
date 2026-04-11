@@ -1,0 +1,9 @@
+{
+  "id": "email_team_update",
+  "subject": "Weekly Team Standup \u2014 Tomorrow 10AM",
+  "body": "Weekly standup tomorrow at 10AM. Please update your task board before the meeting.",
+  "attachment_texts": {},
+  "importance": 4,
+  "task": 5,
+  "difficulty": 1
+}

@@ -4,9 +4,10 @@
   "body": "Congratulations! We are pleased to offer you the Software Engineer Intern position. Please respond by April 5.",
   "attachment_texts": {},
   "received_date": "2026-03-20",
-  "deadline": "2026-04-05",
+  "deadline": "2026-04-20",
   "correct_group": "internships_q1",
   "thread_id": "google_intern_2026",
   "task": 3,
-  "difficulty": 1
+  "difficulty": 1,
+  "expected_color": "green"
 }

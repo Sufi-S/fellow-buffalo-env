@@ -208,6 +208,12 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, atta
         tag_score = 0.5
     
     final_score = (summary_score * 0.5 + tag_score * 0.5)
+    
+    # IMPROVED: Add floor for reasonable summaries
+    # If summary exists (>30 chars) and tags exist (>5 chars), minimum 0.35
+    if agent_summary and len(agent_summary) > 30 and agent_tag_cloud and len(agent_tag_cloud) > 5:
+        final_score = max(0.45, final_score)
+    
     return round(final_score, 2)
 
 

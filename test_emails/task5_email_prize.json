@@ -1,0 +1,9 @@
+{
+  "id": "email_prize",
+  "subject": "Congratulations! You Won a Gift Card",
+  "body": "You have been selected as our lucky winner! Claim your Rs 500 gift card by clicking below.",
+  "attachment_texts": {},
+  "importance": 9,
+  "task": 5,
+  "difficulty": 1
+}

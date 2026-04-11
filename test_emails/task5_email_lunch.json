@@ -1,0 +1,9 @@
+{
+  "id": "email_lunch",
+  "subject": "Team Lunch This Friday at 1PM",
+  "body": "Team lunch this Friday at 1PM at the cafeteria. Please RSVP by Thursday.",
+  "attachment_texts": {},
+  "importance": 7,
+  "task": 5,
+  "difficulty": 1
+}

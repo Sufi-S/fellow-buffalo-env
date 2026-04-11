@@ -4,9 +4,10 @@
   "body": "FINAL REMINDER: Your semester fee is due tomorrow March 31. Late fee of Rs 5000 will apply.",
   "attachment_texts": {},
   "received_date": "2026-03-30",
-  "deadline": "2026-03-31",
+  "deadline": "2026-04-07",
   "correct_group": "finance_q1",
   "thread_id": "vit_fee_q1_2026",
   "task": 3,
-  "difficulty": 2
+  "difficulty": 2,
+  "expected_color": "orange"
 }

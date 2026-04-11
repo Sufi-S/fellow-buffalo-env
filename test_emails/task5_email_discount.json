@@ -1,0 +1,9 @@
+{
+  "id": "email_discount",
+  "subject": "50% Off Sale \u2014 Today Only!",
+  "body": "Massive sale today only! Get 50% off on all electronics. Use code SAVE50 at checkout.",
+  "attachment_texts": {},
+  "importance": 10,
+  "task": 5,
+  "difficulty": 1
+}

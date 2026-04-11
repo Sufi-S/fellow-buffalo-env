@@ -1,0 +1,9 @@
+{
+  "id": "email_documentation",
+  "subject": "API Documentation Update Required",
+  "body": "The API documentation needs to be updated before end of week. Please review and update.",
+  "attachment_texts": {},
+  "importance": 5,
+  "task": 5,
+  "difficulty": 1
+}
