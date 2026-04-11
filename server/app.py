@@ -94,25 +94,18 @@ class ResetRequest(BaseModel):
 # ------------------------------------------------------------------ #
 
 def get_ai_client():
-    groq_key   = os.getenv("GROQ_API_KEY")
-    openai_key = os.getenv("OPENAI_API_KEY")
-    hf_key     = os.getenv("HF_TOKEN")
-    using_groq = bool(groq_key)
-    api_key    = groq_key or openai_key or hf_key
-    api_base   = os.getenv("API_BASE_URL")
+    API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+    MODEL_NAME   = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+    HF_TOKEN     = os.getenv("HF_TOKEN")
+    GROQ_KEY     = os.getenv("GROQ_API_KEY")
 
+    api_key = HF_TOKEN or GROQ_KEY or os.getenv("OPENAI_API_KEY")
     if not api_key:
         return None, None
 
-    if api_base:
-        client = OpenAI(api_key=api_key, base_url=api_base)
-        model  = os.getenv("MODEL_NAME", "gpt-4o-mini")
-    elif using_groq:
-        client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
-        model  = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-    else:
-        client = OpenAI(api_key=api_key)
-        model  = os.getenv("MODEL_NAME", "gpt-4o-mini")
+    client = OpenAI(api_key=api_key, base_url=API_BASE_URL)
+    model = MODEL_NAME
+    using_groq = bool(GROQ_KEY)
 
     print(f"Using {'Groq' if using_groq else 'OpenAI'} — model: {model}")
     return client, model

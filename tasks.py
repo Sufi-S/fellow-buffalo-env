@@ -39,13 +39,14 @@ load_env_file()
 
 def get_client():
     """Get OpenAI client for Task 2 grader"""
-    api_key = os.getenv('GROQ_API_KEY')
-    if api_key:
-        return OpenAI(
-            api_key=api_key,
-            base_url='https://api.groq.com/openai/v1'
-        )
-    return None
+    API_BASE_URL = os.getenv('API_BASE_URL', 'https://api.groq.com/openai/v1')
+    MODEL_NAME = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
+    HF_TOKEN = os.getenv('HF_TOKEN')
+    GROQ_KEY = os.getenv('GROQ_API_KEY')
+    api_key = HF_TOKEN or GROQ_KEY or os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        return None
+    return OpenAI(api_key=api_key, base_url=API_BASE_URL)
 
 
 def task1_grader(correct: Dict[str, Any], agent: Dict[str, Any]) -> float:
@@ -176,7 +177,7 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, atta
     # Score summary - check if it captures key info from attachments
     try:
         summary_response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile'),
             messages=[
                 {"role": "system", "content": "Score this email summary from 0.0 to 1.0. Check: does it capture the main point, key names (company, position), amounts (salary, fee), and dates? Return only the number."},
                 {"role": "user", "content": f"Original email: {email_body[:500]}{attachment_context}\n\nSummary: {agent_summary}"}
@@ -193,7 +194,7 @@ def task2_grader(email_body: str, agent_summary: str, agent_tag_cloud: str, atta
     # Score tag cloud
     try:
         tag_response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile'),
             messages=[
                 {"role": "system", "content": "Score this tag cloud from 0.0 to 1.0. Check: are keywords specific (company names, job titles, amounts), relevant, and useful for search? Return only the number."},
                 {"role": "user", "content": f"Original email: {email_body[:300]}\n\nTag cloud: {agent_tag_cloud}"}
@@ -389,7 +390,7 @@ def task4_grader(email_subject: str, email_body: str, agent_reply: str) -> float
     
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile'),
             messages=[
                 {"role": "system", "content": """You are an expert email evaluator. Score this email reply from 0.0 to 1.0 based on:
 - Relevance: Does it address the original email's main points? (0.3)

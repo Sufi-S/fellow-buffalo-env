@@ -52,34 +52,17 @@ def log_debug(msg: str):
 
 def get_client():
     """Get OpenAI client (works for Groq and OpenAI automatically) - NO PRINTS"""
-    groq_key = os.getenv('GROQ_API_KEY')
-    openai_key = os.getenv('OPENAI_API_KEY')
-    hf_key = os.getenv('HF_TOKEN')
-    
-    # Determine which API to use
-    using_groq = bool(groq_key)
-    api_key = groq_key or openai_key or hf_key
-    
+    API_BASE_URL = os.getenv('API_BASE_URL', 'https://api.groq.com/openai/v1')
+    MODEL_NAME = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
+    HF_TOKEN = os.getenv('HF_TOKEN')
+    GROQ_KEY = os.getenv('GROQ_API_KEY')
+
+    api_key = HF_TOKEN or GROQ_KEY or os.getenv('OPENAI_API_KEY')
     if not api_key:
         return None, None
-    
-    api_base_url = os.getenv('API_BASE_URL')
-    
-    # Set model and base URL based on which key is available
-    if api_base_url:
-        client = OpenAI(api_key=api_key, base_url=api_base_url)
-        model_name = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
-    elif using_groq:
-        # Using Groq
-        client = OpenAI(api_key=api_key, base_url='https://api.groq.com/openai/v1')
-        model_name = os.getenv('MODEL_NAME', 'llama-3.3-70b-versatile')
-    else:
-        # Using OpenAI
-        client = OpenAI(api_key=api_key)
-        model_name = os.getenv('MODEL_NAME', 'gpt-4o-mini')
-    
-    # NO PRINT STATEMENT HERE - removed completely
-    return client, model_name
+
+    client = OpenAI(api_key=api_key, base_url=API_BASE_URL)
+    return client, MODEL_NAME
 
 
 def call_ai(prompt: str, max_tokens: int = 500) -> str:

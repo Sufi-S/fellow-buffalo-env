@@ -20,7 +20,6 @@ def get_api_base() -> str:
     return base.rstrip("/")
 
 
-API_BASE = get_api_base()
 
 
 # ------------------------------------------------------------------ #
@@ -29,7 +28,7 @@ API_BASE = get_api_base()
 
 def _post(path: str, body: dict) -> dict:
     try:
-        r = httpx.post(f"{API_BASE}{path}", json=body, timeout=30)
+        r = httpx.post(f"{get_api_base()}{path}", json=body, timeout=30)
         r.raise_for_status()
         return r.json()
     except Exception as exc:
@@ -38,7 +37,7 @@ def _post(path: str, body: dict) -> dict:
 
 def _get(path: str) -> dict:
     try:
-        r = httpx.get(f"{API_BASE}{path}", timeout=30)
+        r = httpx.get(f"{get_api_base()}{path}", timeout=30)
         r.raise_for_status()
         return r.json()
     except Exception as exc:
