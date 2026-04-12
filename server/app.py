@@ -153,7 +153,9 @@ Example: {{"tab":"Internships","color":"green","deadline":"2026-04-15T23:59:00",
             if done:
                 break
 
-        return round(total_reward, 4)
+        max_possible = step_count * 0.67
+        normalized = total_reward / max_possible if max_possible > 0 else 0.0
+        return round(max(0.01, min(0.99, normalized)), 4)
     except Exception as e:
         print(f"Task 1 baseline error: {e}")
         return 0.0
